@@ -20,6 +20,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import java.util.*;
 
 import static org.bukkit.potion.PotionEffectType.GLOWING;
+import static org.bukkit.potion.PotionEffectType.HEAL;
 
 public final class MagicStone extends JavaPlugin implements Listener {
 
@@ -48,34 +49,46 @@ public final class MagicStone extends JavaPlugin implements Listener {
         getLogger().info("Word 5: " + word5);//効果音
         int lengthOfWord1 = word1.length();
         int lengthOfWord3 = word3.length();
-        int lengthOfWord4 = word4.length()*20;
+        int lengthOfWord4 = word4.length() * 20;
         int lengthOfWord5 = word5.length();
+        int cost = lengthOfWord3 * lengthOfWord4 / 40;
         // 対象の決定
-        switch (lengthOfWord1) {
-            case 1:
-            case 2:
-                // word2の内容に基づく追加のチェック
-                if (word2.contains("発光")) {
-                    PotionEffect potionEffect = new PotionEffect(PotionEffectType.GLOWING, lengthOfWord4, lengthOfWord3);
+        int currentExp = player.getLevel();
+        getLogger().info("Word 1: " + lengthOfWord1);//対象
+        getLogger().info("Word 2: " + word2);//発動効果
+        getLogger().info("Word 3: " + lengthOfWord3);//威力
+        getLogger().info("Word 4: " + lengthOfWord4);//効果時間
+        getLogger().info("Word 5: " + lengthOfWord5);//効果音
+        // 必要な経験値が足りているかチェック
+        if (currentExp >= cost) {
+            // 経験値を減らす
+            player.setLevel(currentExp - cost);
 
-                    // メインスレッドでポーション効果を適用
-                    new BukkitRunnable() {
-                        @Override
-                        public void run() {
-                            player.addPotionEffect(potionEffect);
-                        }
-                    }.runTask(this);
-                    playMagicSound(player, lengthOfWord5);
-                } else {
 
-                }
-                break;
-            case 3:
+            switch (lengthOfWord1) {
+                case 1:
+                case 2:
+                    // word2の内容に基づく追加のチェック
+                    if (word2.contains("発光")) {
+                        onPotionGive(player,GLOWING,lengthOfWord4,lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("回復")) {
+                        onPotionGive(player,HEAL,lengthOfWord4,lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                    } else {
 
-                break;
-            default:
-                // それ以外の場合: 範囲魔法
-                break;
+                    }
+                    break;
+                case 3:
+
+                    break;
+                default:
+                    // それ以外の場合: 範囲魔法
+                    break;
+            }
+        } else {
+            // 経験値が不足している場合のメッセージ
+            player.sendMessage(cost + "レベル足りません。別のスペルで試してください。");
         }
     }
 
@@ -109,6 +122,18 @@ public final class MagicStone extends JavaPlugin implements Listener {
             // 無効なインデックスの場合の処理
             player.sendMessage("Invalid sound index.");
         }
+    }
+
+    private void onPotionGive(Player player,PotionEffectType effect, int timer, int level){
+        PotionEffect potionEffect = new PotionEffect(effect, timer,level);
+
+        // メインスレッドでポーション効果を適用
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                player.addPotionEffect(potionEffect);
+            }
+        }.runTask(this);
     }
 
 }
