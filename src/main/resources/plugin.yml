@@ -1,0 +1,4 @@
+name: magicStone
+version: '${project.version}'
+main: com.github.kumo0621.magicstone.MagicStone
+api-version: '1.20'
