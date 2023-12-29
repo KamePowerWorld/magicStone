@@ -19,10 +19,10 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 
 import java.util.*;
 
-import static org.bukkit.potion.PotionEffectType.GLOWING;
-import static org.bukkit.potion.PotionEffectType.HEAL;
+import static org.bukkit.potion.PotionEffectType.*;
 
 public final class MagicStone extends JavaPlugin implements Listener {
+    private final Map<UUID, Integer> playerExpUsage = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -33,7 +33,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         String message = event.getMessage();
-
+        Random random = new Random();
         String[] words = message.split("、", 5);
 
         String word1 = words.length > 0 ? words[0] : "";
@@ -67,18 +67,46 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
             switch (lengthOfWord1) {
                 case 1:
-                case 2:
+
                     // word2の内容に基づく追加のチェック
                     if (word2.contains("発光")) {
-                        onPotionGive(player,GLOWING,lengthOfWord4,lengthOfWord3);
+                        onPotionGive(player, GLOWING, lengthOfWord4, lengthOfWord3);
                         playMagicSound(player, lengthOfWord5);
+                        particle(player, lengthOfWord1);
                     } else if (word2.contains("回復")) {
-                        onPotionGive(player,HEAL,lengthOfWord4,lengthOfWord3);
+                        onPotionGive(player, HEAL, lengthOfWord4, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                        particle(player, lengthOfWord1);
+                    } else if (word2.contains("削除")) {
+                        clearAllPotionEffects(player);
+                        playMagicSound(player, lengthOfWord5);
+                        particle(player, lengthOfWord1);
+                    } else if (word2.contains("爆裂")) {
+                        runTaskTimerTnt(player, lengthOfWord3, lengthOfWord4);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("追尾")) {
+                        spawnHomingArrow(player, lengthOfWord3, lengthOfWord4);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("満腹")) {
+                        onPotionGive(player, SATURATION, lengthOfWord4, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                        particle(player, lengthOfWord1);
+                    } else if (word2.contains("君臨")) {
+                        skeletonSpawn(player, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("怒れ")) {
+                        onBeamSpawn(player, lengthOfWord3, lengthOfWord4);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("散れ")) {
+                        onMegaFlare(player, lengthOfWord4 / 20, lengthOfWord3);
                         playMagicSound(player, lengthOfWord5);
                     } else {
-
+                        onPotionGive(player, SLOW, lengthOfWord4, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                        deleteParticle(player, random.nextInt(2));
                     }
                     break;
+                case 2:
                 case 3:
 
                     break;
@@ -124,8 +152,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }
     }
 
-    private void onPotionGive(Player player,PotionEffectType effect, int timer, int level){
-        PotionEffect potionEffect = new PotionEffect(effect, timer,level);
+    private void onPotionGive(Player player, PotionEffectType effect, int timer, int level) {
+        PotionEffect potionEffect = new PotionEffect(effect, timer, level);
 
         // メインスレッドでポーション効果を適用
         new BukkitRunnable() {
@@ -136,5 +164,207 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }.runTask(this);
     }
 
+    private void clearAllPotionEffects(Player player) {
+        // プレイヤーが持っているすべてのポーション効果を削除
+        for (PotionEffectType effectType : PotionEffectType.values()) {
+            if (player.hasPotionEffect(effectType)) {
+                player.removePotionEffect(effectType);
+            }
+        }
+    }
+
+    private void runTaskTimerTnt(Player player, int lengthOfWord3, int lengthOfWord4) {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                spawnTNT(player, lengthOfWord3, lengthOfWord4); // この呼び出しはメインスレッドで行われる
+            }
+        }.runTask(this); // 'this' はプラグインのインスタンスを指す
+    }
+
+    private void spawnTNT(Player player, int lengthOfWord3, int lengthOfWord4) {
+        Location location = player.getLocation();
+        Random random = new Random();
+
+        for (int i = 0; i < lengthOfWord3; i++) {
+            Location tntLocation = location.clone().add(random.nextInt(41) - 20, random.nextInt(2), random.nextInt(41) - 20);
+            TNTPrimed tnt = location.getWorld().spawn(tntLocation, TNTPrimed.class);
+            tnt.setFuseTicks(lengthOfWord4 / 20 + 10); // TNTの導火線を設定（オプション）
+        }
+    }
+
+    private void spawnHomingArrow(Player player, int lengthOfWord3, int lengthOfWord4) {
+        for (int i = 0; i < lengthOfWord3; i++) {
+            getServer().getScheduler().runTaskLater(this, () -> {
+                Arrow arrow = player.launchProjectile(Arrow.class);
+                arrow.setVelocity(player.getLocation().getDirection().multiply(2.0)); // 速度の設定
+                player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ARROW_SHOOT, 1.0F, 1.0F); // 発射音
+
+                // ホーミングタスク
+                getServer().getScheduler().runTaskTimer(this, new Runnable() {
+                    @Override
+                    public void run() {
+                        if (!arrow.isValid() || arrow.isOnGround()) {
+                            arrow.remove();
+                            return;
+                        }
+
+                        // パーティクルを表示
+                        arrow.getWorld().spawnParticle(Particle.SPELL, arrow.getLocation(), 10, 0.3, 0.3, 0.3, 0.05);
+
+                        // 最も近いエンティティを探す（他のプレイヤーを除外）
+                        LivingEntity target = null;
+                        double closestDistance = Double.MAX_VALUE;
+                        for (Entity entity : arrow.getNearbyEntities(10, 10, 10)) {
+                            if (entity instanceof LivingEntity && !(entity instanceof Player)) {
+                                double distance = entity.getLocation().distanceSquared(arrow.getLocation());
+                                if (distance < closestDistance) {
+                                    closestDistance = distance;
+                                    target = (LivingEntity) entity;
+                                }
+                            }
+                        }
+
+                        // ターゲットに向けて矢を誘導
+                        if (target != null) {
+                            Vector direction = target.getLocation().add(0, 1, 0).subtract(arrow.getLocation()).toVector().normalize();
+                            arrow.setVelocity(direction.multiply(1.5)); // 速度の更新
+                        }
+                    }
+                }, 0L, 1L); // 0L: 遅延なし, 1L: 1ティックごとに更新
+            }, lengthOfWord4 / 20L * i); // i秒後に矢を発射
+        }
+
+    }
+
+    private void skeletonSpawn(Player player, int count) {
+        if (player.getWorld().getEnvironment() != World.Environment.THE_END) {
+            player.sendMessage("エンドにいないと使えません。");
+            return;
+        }
+        UUID playerId = player.getUniqueId();
+        playerExpUsage.putIfAbsent(playerId, 0);
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!player.isOnline() || player.getWorld().getEnvironment() != World.Environment.THE_END) {
+                    playerExpUsage.remove(playerId);
+                    this.cancel();
+                    return;
+                }
+
+                int expUsed = playerExpUsage.get(playerId) + 1;
+                if (expUsed <= 30) {
+                    if (player.getLevel() > 0) {
+                        player.setLevel(player.getLevel() - 1);
+                        playerExpUsage.put(playerId, expUsed);
+                        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 0.5F);
+                    } else {
+                        player.sendMessage("経験値が不足しています。");
+                        playerExpUsage.remove(playerId);
+                        this.cancel();
+                        return;
+                    }
+                }
+
+                if (expUsed == 30) {
+                    // パーティクルとサウンドを再生
+                    player.getWorld().spawnParticle(Particle.PORTAL, player.getLocation(), 100, 1, 1, 1, 0.5);
+                    player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0F, 1.0F);
+
+                    // 視線の先にスケルトンを20体スポーン
+                    Location spawnLocation = player.getTargetBlock(null, 50).getLocation().add(0, 1, 0);
+                    for (int i = 0; i < count; i++) {
+                        spawnLocation.getWorld().spawnEntity(spawnLocation, EntityType.SKELETON);
+                    }
+
+                    playerExpUsage.remove(playerId);
+                    this.cancel();
+                }
+            }
+        }.runTaskTimer(this, 0L, 20L); // 1秒ごとに実行
+    }
+
+    private void onBeamSpawn(Player player, int lengthOfWord3, int lengthOfWord4) {
+        new BukkitRunnable() {
+            Location loc = player.getEyeLocation();
+            Vector direction = loc.getDirection().normalize().multiply(2); // ビームの方向と速度
+            int range = lengthOfWord4 / 20; // ビームの射程
+
+            @Override
+            public void run() {
+                for (int i = 0; i <= range; i++) {
+                    loc.add(direction);
+                    player.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, loc, 1, 0, 0, 0, 0);
+
+                    // 当たり判定
+                    for (Entity entity : loc.getWorld().getNearbyEntities(loc, 2, 2, 2)) {
+                        if (entity instanceof LivingEntity && entity != player) {
+                            ((LivingEntity) entity).damage(lengthOfWord3 - 6);
+                            this.cancel();
+                            return;
+                        }
+                    }
+
+                    if (loc.getBlock().getType() != Material.AIR) {
+                        this.cancel();
+                        return;
+                    }
+                }
+                this.cancel();
+            }
+        }.runTaskTimer(this, 0L, 1L); // タスクを毎ティック実行
+    }
+
+    private void onMegaFlare(Player player, int range, int damage) {
+        Location targetLocation = player.getTargetBlock(null, range).getLocation().add(0, 2, 0); // 3ブロック上の位置
+
+        // ファイヤーチャージのエフェクトとサウンドを再生
+        player.getWorld().playSound(targetLocation, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.0F, 1.0F);
+        player.getWorld().spawnParticle(Particle.FIREWORKS_SPARK, targetLocation, 100, 0.5, 0.5, 0.5, 0.1);
+
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                // 着地点近くのエンティティにダメージを与える
+                for (Entity entity : targetLocation.getWorld().getNearbyEntities(targetLocation, 5, 5, 5)) {
+                    if (entity instanceof LivingEntity) {
+                        ((LivingEntity) entity).damage(damage);
+                    }
+                }
+                // 爆発のパーティクルを表示
+                targetLocation.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, targetLocation, 10, 0.5, 0.5, 0.5, 0.1);
+            }
+        }.runTaskLater(this, 20L); // 1秒後に爆発
+    }
+
+    private void particle(Player player, int count) {
+        switch (count) {
+            case 1:
+                player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation(), 30, 0.5, 0.5, 0.5, 0.1);
+                break;
+            case 2:
+                player.getWorld().spawnParticle(Particle.SPELL_WITCH, player.getLocation(), 30, 0.5, 0.5, 0.5, 0.1);
+                break;
+            default:
+                player.getWorld().spawnParticle(Particle.ENCHANTMENT_TABLE, player.getLocation(), 30, 0.5, 0.5, 0.5, 0.1);
+                break;
+        }
+    }
+
+    private void deleteParticle(Player player, int count) {
+        switch (count) {
+            case 0:
+                player.getWorld().spawnParticle(Particle.SMOKE_NORMAL, player.getLocation(), 30, 0.5, 0.5, 0.5, 0.1);
+                break;
+            case 1:
+                player.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, player.getLocation(), 10, 1.0, 1.0, 1.0, 0.1);
+                break;
+            default:
+                player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation(), 20, 0.5, 0.5, 0.5, 0.1);
+                break;
+        }
+    }
 }
 
