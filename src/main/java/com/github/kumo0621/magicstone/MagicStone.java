@@ -77,7 +77,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
 
             switch (lengthOfWord1) {
-                case 1:
+                case 1://自分自身
 
                     // word2の内容に基づく追加のチェック
                     if (word2.contains("発光")) {
@@ -106,7 +106,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     }
                     break;
                 case 2:
-                case 3:
+                case 3://対象１体
                     if (word2.contains("発光")) {
                         onPointView(player, GLOWING, lengthOfWord4, lengthOfWord3);
                         playMagicSound(player, lengthOfWord5);
@@ -133,15 +133,21 @@ public final class MagicStone extends JavaPlugin implements Listener {
                         onMegaFlare(player, lengthOfWord4 / 20, lengthOfWord3);
                         playMagicSound(player, lengthOfWord5);
                     } else if (word2.contains("燃")) {
-                        igniteEntityInSight(player, lengthOfWord4 / 20);
+                        igniteEntityInSight(player, lengthOfWord4);
                         playMagicSound(player, lengthOfWord5);
-                    } else {
+                    } else if (word2.contains("炎の竜巻")) {
+                        summonFireTornado(player,lengthOfWord4,lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("雪氷")) {
+                        castIceMagic(player,lengthOfWord3,lengthOfWord4);
+                        playMagicSound(player, lengthOfWord5);
+                    }else {
                         onPotionGive(player, SLOW, lengthOfWord4, lengthOfWord3);
                         playMagicSound(player, lengthOfWord5);
                         deleteParticle(player, random.nextInt(2));
                     }
                     break;
-                default:
+                default://複数対象
                     // それ以外の場合:
                     if (word2.contains("爆裂")) {
                         spawnTNT(player, lengthOfWord3, lengthOfWord4);
@@ -196,6 +202,35 @@ public final class MagicStone extends JavaPlugin implements Listener {
         onPotionGive(player, PotionEffectType.SLOW, lengthOfWord4, lengthOfWord3);
         playMagicSound(player, lengthOfWord5);
         deleteParticle(player, random.nextInt(2));
+    }
+    private void summonFireTornado(Player player,int timer,int attack) {
+        new BukkitRunnable() {
+            Location loc = player.getEyeLocation();
+            Vector direction = loc.getDirection().normalize().multiply(0.5); // 竜巻の速度と方向
+            int ticks = 0; // 竜巻の持続時間のカウンター
+
+            @Override
+            public void run() {
+                if (ticks > 100) { // 竜巻の持続時間（例: 100ティック）
+                    this.cancel();
+                    return;
+                }
+
+                loc.add(direction);
+                loc.getWorld().spawnParticle(Particle.FLAME, loc, 20, 0.3, 0.3, 0.3, 0.05);
+                loc.getWorld().spawnParticle(Particle.SMOKE_NORMAL, loc, 20, 0.3, 0.3, 0.3, 0.05);
+
+                // 竜巻の当たり判定
+                for (Entity entity : loc.getWorld().getNearbyEntities(loc, 1, 1, 1)) {
+                    if (entity instanceof LivingEntity && entity != player) {
+                        ((LivingEntity) entity).damage(attack); // 3ダメージ
+                        entity.setFireTicks(timer); // 3秒間炎上
+                    }
+                }
+
+                ticks++;
+            }
+        }.runTaskTimer(this, 0L, 1L); // タスクを毎ティック実行
     }
 
     private void ignitePlayer(Player player, int duration) {
@@ -324,6 +359,34 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }, lengthOfWord4 / 20L * i); // i秒後に矢を発射
         }
 
+    }
+    private void castIceMagic(Player player,int time ,int damage) {
+        new BukkitRunnable() {
+            Location loc = player.getEyeLocation();
+            Vector direction = loc.getDirection().normalize().multiply(0.5); // プレイヤーの向きに合わせた方向と速度
+            int ticks = 0;
+
+            @Override
+            public void run() {
+                if (ticks > 60) { // 魔法の持続時間
+                    this.cancel();
+                    return;
+                }
+
+                loc.add(direction);
+                loc.getWorld().spawnParticle(Particle.SNOW_SHOVEL, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                // 当たり判定
+                for (Entity entity : loc.getWorld().getNearbyEntities(loc, 1, 1, 1)) {
+                    if (entity instanceof LivingEntity && entity != player) {
+                        LivingEntity target = (LivingEntity) entity;
+                        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 60, 100)); // 3秒間の移動速度低下
+                        target.damage((double) damage /2); // 継続ダメージ
+                    }
+                }
+
+                ticks++;
+            }
+        }.runTaskTimer(this, 0L, 1L);
     }
 
     private void skeletonSpawn(Player player, int count) {
@@ -499,15 +562,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
     }
 
     private void igniteEntityInSight(Player player, int duration) {
-        Vector direction = player.getEyeLocation().getDirection();
-        for (Entity entity : player.getNearbyEntities(50, 50, 50)) {
-            if (entity instanceof Player && entity != player) {
-                Vector toEntity = entity.getLocation().toVector().subtract(player.getLocation().toVector());
-                if (toEntity.normalize().dot(direction) > 0.98) {
-                    entity.setFireTicks(duration);
-                    break;
-                }
-            }
-        }
+        LivingEntity target = getTargetEntity(player);
+        target.setFireTicks(duration);
+
     }
 }
