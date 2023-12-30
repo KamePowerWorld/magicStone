@@ -6,6 +6,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
@@ -23,6 +24,7 @@ import static org.bukkit.potion.PotionEffectType.*;
 
 public final class MagicStone extends JavaPlugin implements Listener {
     private final Map<UUID, Integer> playerExpUsage = new HashMap<>();
+    Random random = new Random();
 
     @Override
     public void onEnable() {
@@ -30,10 +32,10 @@ public final class MagicStone extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onPlayerChat(AsyncPlayerChatEvent event) {
+    public void onPlayerChat(PlayerChatEvent event) {
         Player player = event.getPlayer();
         String message = event.getMessage();
-        Random random = new Random();
+
         String[] words = message.split("、", 5);
 
         String word1 = words.length > 0 ? words[0] : "";
@@ -54,16 +56,25 @@ public final class MagicStone extends JavaPlugin implements Listener {
         int cost = lengthOfWord3 * lengthOfWord4 / 40;
         // 対象の決定
         int currentExp = player.getLevel();
-        getLogger().info("Word 1: " + lengthOfWord1);//対象
-        getLogger().info("Word 2: " + word2);//発動効果
-        getLogger().info("Word 3: " + lengthOfWord3);//威力
-        getLogger().info("Word 4: " + lengthOfWord4);//効果時間
-        getLogger().info("Word 5: " + lengthOfWord5);//効果音
         // 必要な経験値が足りているかチェック
         if (currentExp >= cost) {
             // 経験値を減らす
             player.setLevel(currentExp - cost);
-
+            if (hasConsecutiveCharacters(word1)) {
+                executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
+            }
+            if (hasConsecutiveCharacters(word2)) {
+                executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
+            }
+            if (hasConsecutiveCharacters(word3)) {
+                executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
+            }
+            if (hasConsecutiveCharacters(word4)) {
+                executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
+            }
+            if (hasConsecutiveCharacters(word5)) {
+                executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
+            }
 
             switch (lengthOfWord1) {
                 case 1:
@@ -81,24 +92,12 @@ public final class MagicStone extends JavaPlugin implements Listener {
                         clearAllPotionEffects(player);
                         playMagicSound(player, lengthOfWord5);
                         particle(player, lengthOfWord1);
-                    } else if (word2.contains("爆裂")) {
-                        runTaskTimerTnt(player, lengthOfWord3, lengthOfWord4);
-                        playMagicSound(player, lengthOfWord5);
-                    } else if (word2.contains("追尾")) {
-                        spawnHomingArrow(player, lengthOfWord3, lengthOfWord4);
-                        playMagicSound(player, lengthOfWord5);
                     } else if (word2.contains("満腹")) {
                         onPotionGive(player, SATURATION, lengthOfWord4, lengthOfWord3);
                         playMagicSound(player, lengthOfWord5);
                         particle(player, lengthOfWord1);
-                    } else if (word2.contains("君臨")) {
-                        skeletonSpawn(player, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                    } else if (word2.contains("怒れ")) {
-                        onBeamSpawn(player, lengthOfWord3, lengthOfWord4);
-                        playMagicSound(player, lengthOfWord5);
-                    } else if (word2.contains("散れ")) {
-                        onMegaFlare(player, lengthOfWord4 / 20, lengthOfWord3);
+                    } else if (word2.contains("燃")) {
+                        ignitePlayer(player, lengthOfWord4 / 20);
                         playMagicSound(player, lengthOfWord5);
                     } else {
                         onPotionGive(player, SLOW, lengthOfWord4, lengthOfWord3);
@@ -108,10 +107,59 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     break;
                 case 2:
                 case 3:
-
+                    if (word2.contains("発光")) {
+                        onPointView(player, GLOWING, lengthOfWord4, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                        particle(player, lengthOfWord1);
+                    } else if (word2.contains("回復")) {
+                        onPointView(player, HEAL, lengthOfWord4, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                        particle(player, lengthOfWord1);
+                    } else if (word2.contains("削除")) {
+                        clearEffectsFromTargetPlayer(player);
+                        playMagicSound(player, lengthOfWord5);
+                        particle(player, lengthOfWord1);
+                    } else if (word2.contains("追尾")) {
+                        spawnHomingArrow(player, lengthOfWord3, lengthOfWord4);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("満腹")) {
+                        onPointView(player, SATURATION, lengthOfWord4, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                        particle(player, lengthOfWord1);
+                    } else if (word2.contains("怒れ")) {
+                        onBeamSpawn(player, lengthOfWord3, lengthOfWord4);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("散れ")) {
+                        onMegaFlare(player, lengthOfWord4 / 20, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("燃")) {
+                        igniteEntityInSight(player, lengthOfWord4 / 20);
+                        playMagicSound(player, lengthOfWord5);
+                    } else {
+                        onPotionGive(player, SLOW, lengthOfWord4, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                        deleteParticle(player, random.nextInt(2));
+                    }
                     break;
                 default:
-                    // それ以外の場合: 範囲魔法
+                    // それ以外の場合:
+                    if (word2.contains("爆裂")) {
+                        spawnTNT(player, lengthOfWord3, lengthOfWord4);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("雷神")) {
+                        castLightningSpell(player, lengthOfWord4 / 20 * 2, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("虚心")) {
+                        summonZombies(player, lengthOfWord4, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                    } else if (word2.contains("君臨")) {
+                        skeletonSpawn(player, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                    } else {
+                        onPotionGive(player, SLOW, lengthOfWord4, lengthOfWord3);
+                        playMagicSound(player, lengthOfWord5);
+                        deleteParticle(player, random.nextInt(2));
+                    }
                     break;
             }
         } else {
@@ -143,6 +191,56 @@ public final class MagicStone extends JavaPlugin implements Listener {
             Sound.ENTITY_ENDER_EYE_LAUNCH           // 20
     };
 
+
+    private void executeMagicActions(Player player, int lengthOfWord3, int lengthOfWord4, int lengthOfWord5) {
+        onPotionGive(player, PotionEffectType.SLOW, lengthOfWord4, lengthOfWord3);
+        playMagicSound(player, lengthOfWord5);
+        deleteParticle(player, random.nextInt(2));
+    }
+
+    private void ignitePlayer(Player player, int duration) {
+        player.setFireTicks(duration);
+    }
+
+    private boolean hasConsecutiveCharacters(String word) {
+        for (int i = 0; i < word.length() - 1; i++) {
+            if (word.charAt(i) == word.charAt(i + 1)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void summonZombies(Player player, int radius, int numberOfZombies) {
+        Location playerLocation = player.getLocation();
+        World world = player.getWorld();
+        Random random = new Random();
+
+        for (int i = 0; i < numberOfZombies; i++) {
+            int dx = random.nextInt(radius * 2) - radius;
+            int dz = random.nextInt(radius * 2) - radius;
+            Location spawnLocation = playerLocation.clone().add(dx, 0, dz);
+
+            Zombie zombie = (Zombie) world.spawnEntity(spawnLocation, EntityType.ZOMBIE);
+            zombie.setMaxHealth(40);
+            zombie.setHealth(40);
+        }
+    }
+
+    private void castLightningSpell(Player player, int radius, int numberOfStrikes) {
+        Location playerLocation = player.getLocation();
+        World world = player.getWorld();
+        Random random = new Random();
+
+        for (int i = 0; i < numberOfStrikes; i++) {
+            int dx = random.nextInt(radius * 2) - radius;
+            int dz = random.nextInt(radius * 2) - radius;
+            Location strikeLocation = playerLocation.clone().add(dx, 0, dz);
+
+            world.strikeLightning(strikeLocation);
+        }
+    }
+
     public static void playMagicSound(Player player, int soundIndex) {
         if (soundIndex >= 1 && soundIndex <= magicSounds.length) {
             player.playSound(player.getLocation(), magicSounds[soundIndex - 1], 1.0f, 1.0f);
@@ -154,14 +252,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
     private void onPotionGive(Player player, PotionEffectType effect, int timer, int level) {
         PotionEffect potionEffect = new PotionEffect(effect, timer, level);
-
-        // メインスレッドでポーション効果を適用
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                player.addPotionEffect(potionEffect);
-            }
-        }.runTask(this);
+        player.addPotionEffect(potionEffect);
     }
 
     private void clearAllPotionEffects(Player player) {
@@ -173,13 +264,11 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }
     }
 
-    private void runTaskTimerTnt(Player player, int lengthOfWord3, int lengthOfWord4) {
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                spawnTNT(player, lengthOfWord3, lengthOfWord4); // この呼び出しはメインスレッドで行われる
-            }
-        }.runTask(this); // 'this' はプラグインのインスタンスを指す
+    private void clearEffectsFromTargetPlayer(Player player) {
+        Player targetPlayer = getTargetPlayer(player);
+        if (targetPlayer != null) {
+            clearAllPotionEffects(targetPlayer);
+        }
     }
 
     private void spawnTNT(Player player, int lengthOfWord3, int lengthOfWord4) {
@@ -366,5 +455,59 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 break;
         }
     }
-}
 
+    private void onPointView(Player player, PotionEffectType effect, int timer, int level) {
+        LivingEntity target = getTargetEntity(player);
+        if (target != null) {
+            PotionEffect potionEffect = new PotionEffect(effect, timer * 20, level);
+            target.addPotionEffect(potionEffect);
+        }
+    }
+
+    private LivingEntity getTargetEntity(Player player) {
+        List<Entity> nearbyEntities = player.getNearbyEntities(50, 50, 50); // 距離は必要に応じて調整
+        Vector playerDirection = player.getLocation().getDirection().normalize();
+
+        for (Entity entity : nearbyEntities) {
+            if (entity instanceof LivingEntity) {
+                Vector toEntity = entity.getLocation().toVector().subtract(player.getLocation().toVector()).normalize();
+                double dot = toEntity.dot(playerDirection);
+
+                if (dot > 0.98) { // この値は必要に応じて調整（1に近いほど正確）
+                    return (LivingEntity) entity;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Player getTargetPlayer(Player player) {
+        List<Entity> nearbyEntities = player.getNearbyEntities(50, 50, 50); // 距離は必要に応じて調整
+        Vector playerDirection = player.getLocation().getDirection().normalize();
+
+        for (Entity entity : nearbyEntities) {
+            if (entity instanceof Player && entity != player) {
+                Vector toEntity = entity.getLocation().toVector().subtract(player.getLocation().toVector()).normalize();
+                double dot = toEntity.dot(playerDirection);
+
+                if (dot > 0.98) { // この値は必要に応じて調整（1に近いほど正確）
+                    return (Player) entity;
+                }
+            }
+        }
+        return null;
+    }
+
+    private void igniteEntityInSight(Player player, int duration) {
+        Vector direction = player.getEyeLocation().getDirection();
+        for (Entity entity : player.getNearbyEntities(50, 50, 50)) {
+            if (entity instanceof Player && entity != player) {
+                Vector toEntity = entity.getLocation().toVector().subtract(player.getLocation().toVector());
+                if (toEntity.normalize().dot(direction) > 0.98) {
+                    entity.setFireTicks(duration);
+                    break;
+                }
+            }
+        }
+    }
+}
