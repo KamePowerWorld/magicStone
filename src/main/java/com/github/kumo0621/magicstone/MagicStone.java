@@ -58,7 +58,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
         String message = event.getMessage();
         if (message.startsWith("@")) {
             event.setCancelled(true);
-            summonArmorStand(player,message);
+
             String[] words = message.split("、", 5);
             String target = words.length > 0 ? words[0] : "";
             String magicType = words.length > 1 ? words[1] : "";
@@ -91,6 +91,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 } else {
                     switch (lengthOfWord1) {
                         case 1://自分自身
+                        case 2:
                             switch (lengthOfWord2) {
                                 case 1://自分を光らせる魔法
                                 case 2:
@@ -177,8 +178,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
                                     break;
-                            }
-                        case 2://対象１体
+                            }break;
+                        case 3://対象１体
                             switch (lengthOfWord2) {
                                 case 1://相手をひとり光らせる
                                 case 2:
@@ -270,7 +271,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                                     playMagicSound(player, lengthOfWord5);
                                     break;
 
-                            }
+                            }break;
                         default://複数対象
                             // それ以外の場合:
                             switch (lengthOfWord2) {
@@ -294,7 +295,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                                     break;
                                 case 7://お花をわかせる
                                 case 8:
-                                    castFlowerSpell(player, lengthOfWord4, lengthOfWord3);
+                                    castFlowerSpell(player, lengthOfWord3, lengthOfWord4);
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
                                     break;
@@ -316,7 +317,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                                     particle(player, lengthOfWord1);
                                     break;
 
-                            }
+                            }break;
                     }
                 }
             } else {
@@ -324,6 +325,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 player.sendMessage(cost + "レベル足りません。別のスペルで試してください。");
             }
         }
+        summonArmorStand(player,message);
     }
 
     private static final Sound[] magicSounds = {
@@ -498,7 +500,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
         }.runTaskLater(this, time); // 200ティック後に実行（10秒）
     }
-    private void castFlowerSpell(Player player, int radius, int numberOfFlowers) {
+    private void castFlowerSpell(Player player, int flowerCount, int numberOfFlowers) {
         Location playerLocation = player.getLocation();
         Random random = new Random();
 
@@ -507,18 +509,18 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
             @Override
             public void run() {
-                if (count >= numberOfFlowers) {
+                if (count >= 3) {
                     this.cancel();
                     return;
                 }
 
-                int dx = random.nextInt(radius * 2) - radius;
-                int dz = random.nextInt(radius * 2) - radius;
+                int dx = random.nextInt(5);
+                int dz = random.nextInt(5);
                 Location spawnLocation = playerLocation.clone().add(dx, 0, dz);
-                spawnLocation.setY(playerLocation.getWorld().getHighestBlockYAt(spawnLocation) + 1);
+                spawnLocation.setY(spawnLocation.getWorld().getHighestBlockYAt(spawnLocation));
 
                 Material flower = random.nextBoolean() ? Material.POPPY : Material.DANDELION;
-                playerLocation.getWorld().dropItemNaturally(spawnLocation, new ItemStack(flower, 1));
+                spawnLocation.getWorld().dropItemNaturally(spawnLocation, new ItemStack(flower, flowerCount));
 
                 count++;
             }
@@ -690,7 +692,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                         LivingEntity target = null;
                         double closestDistance = Double.MAX_VALUE;
                         for (Entity entity : arrow.getNearbyEntities(10, 10, 10)) {
-                            if (entity instanceof LivingEntity && !(entity instanceof Player)) {
+                            if (entity instanceof LivingEntity && !(entity instanceof Player)&& !(entity instanceof ArmorStand)) {
                                 double distance = entity.getLocation().distanceSquared(arrow.getLocation());
                                 if (distance < closestDistance) {
                                     closestDistance = distance;
@@ -730,7 +732,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                         LivingEntity target = null;
                         double closestDistance = Double.MAX_VALUE;
                         for (Entity entity : tnt.getNearbyEntities(10, 10, 10)) {
-                            if (entity instanceof LivingEntity && !(entity instanceof Player)) {
+                            if (entity instanceof LivingEntity && !(entity instanceof Player)&& !(entity instanceof ArmorStand)) {
                                 double distance = entity.getLocation().distanceSquared(tnt.getLocation());
                                 if (distance < closestDistance) {
                                     closestDistance = distance;
