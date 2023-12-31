@@ -33,10 +33,11 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onPlayerChat(PlayerChatEvent event) {
+
         Player player = event.getPlayer();
         String message = event.getMessage();
         if (message.startsWith("@")) {
-
+            event.setCancelled(true);
             summonArmorStand(player,message);
             String[] words = message.split("、", 5);
             String target = words.length > 0 ? words[0] : "";
@@ -72,21 +73,25 @@ public final class MagicStone extends JavaPlugin implements Listener {
                         case 1://自分自身
                             switch (lengthOfWord2) {
                                 case 1://自分を光らせる魔法
+                                case 2:
                                     onPotionGive(player, GLOWING, lengthOfWord4, lengthOfWord3);
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
                                     break;
-                                case 2://自分を回復させる
+                                case 3://自分を回復させる
+                                case 4:
                                     onPotionGive(player, HEAL, lengthOfWord4, lengthOfWord3);
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
                                     break;
-                                case 3://自分のエフェクトを解除する
+                                case 5://自分のエフェクトを解除する
+                                case 6:
                                     clearAllPotionEffects(player);
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
                                     break;
-                                case 4://満腹度回復
+                                case 7://満腹度回復
+                                case 8:
                                     onPotionGive(player, SATURATION, lengthOfWord4, lengthOfWord3);
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
@@ -99,42 +104,51 @@ public final class MagicStone extends JavaPlugin implements Listener {
                         case 2://対象１体
                             switch (lengthOfWord2) {
                                 case 1://相手をひとり光らせる
+                                case 2:
                                     onPointView(player, GLOWING, lengthOfWord4, lengthOfWord3);
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
                                     break;
-                                case 2://相手を一人光らせる
+                                case 3://相手を一人光らせる
+                                case 4:
                                     onPointView(player, HEAL, lengthOfWord4, lengthOfWord3);
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
                                     break;
-                                case 3://相手一人のエフェクトを解除する
+                                case 5://相手一人のエフェクトを解除する
+                                case 6:
                                     clearEffectsFromTargetPlayer(player);
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
                                     break;
-                                case 4://追尾する矢を召喚する
+                                case 7://追尾する矢を召喚する
+                                case 8:
                                     spawnHomingArrow(player, lengthOfWord3, lengthOfWord4);
                                     playMagicSound(player, lengthOfWord5);
                                     break;
-                                case 5://相手一人の満腹度を回復する
+                                case 9://相手一人の満腹度を回復する
+                                case 10:
                                     onPointView(player, SATURATION, lengthOfWord4, lengthOfWord3);
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
                                     break;
-                                case 6://正面にビームを発射する
+                                case 11://正面にビームを発射する
+                                case 12:
                                     onBeamSpawn(player, lengthOfWord3, lengthOfWord4);
                                     playMagicSound(player, lengthOfWord5);
                                     break;
-                                case 7://隕石を落とす
+                                case 13://隕石を落とす
+                                case 14:
                                     onMegaFlare(player, lengthOfWord4 / 20, lengthOfWord3);
                                     playMagicSound(player, lengthOfWord5);
                                     break;
-                                case 8://相手を燃やす魔法
+                                case 15://相手を燃やす魔法
+                                case 16:
                                     igniteEntityInSight(player, lengthOfWord4);
                                     playMagicSound(player, lengthOfWord5);
                                     break;
-                                case 9://炎の竜巻
+                                case 17://炎の竜巻
+                                case 18:
                                     summonFireTornado(player, lengthOfWord4 / 20, lengthOfWord3);
                                     playMagicSound(player, lengthOfWord5);
                                     break;
@@ -147,14 +161,17 @@ public final class MagicStone extends JavaPlugin implements Listener {
                             // それ以外の場合:
                             switch (lengthOfWord2) {
                                 case 1://広範囲に爆発を行う
+                                case 2:
                                     spawnTNT(player, lengthOfWord3, lengthOfWord4);
                                     playMagicSound(player, lengthOfWord5);
                                     break;
-                                case 2://広範囲に落雷を落とす
+                                case 3://広範囲に落雷を落とす
+                                case 4:
                                     castLightningSpell(player, lengthOfWord4 / 20 * 2, lengthOfWord3);
                                     playMagicSound(player, lengthOfWord5);
                                     break;
-                                case 3://広範囲にゾンビをわかせる
+                                case 5://広範囲にゾンビをわかせる
+                                case 6:
                                     summonZombies(player, lengthOfWord4, lengthOfWord3);
                                     playMagicSound(player, lengthOfWord5);
                                     break;
@@ -196,11 +213,9 @@ public final class MagicStone extends JavaPlugin implements Listener {
             Sound.ENTITY_ENDER_EYE_LAUNCH           // 20
     };
     private void summonArmorStand(Player player, String text) {
-        // メッセージから「@」を取り除き、「、」も置換で除去
         String processedText = text.substring(1).replace("、", "");
 
-        // 以降の処理は同じ
-        Location location = player.getLocation().add(0, 2, 0); // プレイヤーの頭上
+        Location location = player.getLocation().add(0, 0.1, 0); // プレイヤーの頭上
         ArmorStand armorStand = location.getWorld().spawn(location, ArmorStand.class);
 
         armorStand.setVisible(false); // 防具立てを見えなくする
@@ -208,24 +223,22 @@ public final class MagicStone extends JavaPlugin implements Listener {
         armorStand.setCustomName(processedText); // 処理された名前を設定
         armorStand.setCustomNameVisible(true); // 名前を表示
 
-        // モーションを適用し、3秒後に防具立てを消去
         new BukkitRunnable() {
             int ticks = 0;
 
             @Override
             public void run() {
-                if (ticks > 60) { // 3秒後
+                if (ticks > 60) { // 3秒後（60ティック）
                     armorStand.remove(); // 防具立てを消去
                     this.cancel();
                     return;
                 }
 
-                // 上方向にベクトルを適用
-                Vector vector = new Vector(0, 0.1, 0);
-                armorStand.setVelocity(vector);
+                // 防具立ての位置を徐々に上昇させる
+                armorStand.teleport(armorStand.getLocation().add(0, 0.05, 0)); // 少しずつ上に移動
                 ticks++;
             }
-        }.runTaskTimer(this, 0L, 1L);
+        }.runTaskTimer(this, 0L, 1L); // ティックごとにタスクを実行
     }
 
     private void executeMagicActions(Player player, int lengthOfWord3, int lengthOfWord4, int lengthOfWord5) {
