@@ -76,8 +76,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             int currentExp = player.getLevel();
             // 必要な経験値が足りているかチェック
             if (currentExp >= cost) {
-                // 経験値を減らす
-                player.setLevel(currentExp - cost);
+
                 if (hasConsecutiveCharacters(target)) {
                     executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
                 } else if (hasConsecutiveCharacters(magicType)) {
@@ -319,13 +318,16 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
                             }break;
                     }
+                    // 経験値を減らす
+                    player.setLevel(currentExp - cost);
+                    summonArmorStand(player,message);
                 }
             } else {
                 // 経験値が不足している場合のメッセージ
-                player.sendMessage(cost + "レベル足りません。別のスペルで試してください。");
+                player.sendMessage(cost + "レベル必要です。別のスペルで試してください。");
             }
         }
-        summonArmorStand(player,message);
+
     }
 
     private static final Sound[] magicSounds = {
@@ -629,7 +631,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             player.playSound(player.getLocation(), magicSounds[soundIndex - 1], 1.0f, 1.0f);
         } else {
             // 無効なインデックスの場合の処理
-            player.sendMessage("Invalid sound index.");
+            player.sendMessage("スペルの文法が間違っています");
         }
     }
 
