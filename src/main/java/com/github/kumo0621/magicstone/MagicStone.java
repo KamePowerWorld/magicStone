@@ -713,6 +713,10 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
     }
     private void spawnHomingTNT(Player player, int numberOfTNT, int fuseTicks) {
+        if (player.getWorld().getEnvironment() != World.Environment.THE_END) {
+            player.sendMessage("エンドにいないと使えません。");
+            return;
+        }
         for (int i = 0; i < numberOfTNT; i++) {
             getServer().getScheduler().runTaskLater(this, () -> {
                 Location launchLocation = player.getLocation().add(player.getLocation().getDirection().multiply(2));
