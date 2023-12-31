@@ -35,142 +35,141 @@ public final class MagicStone extends JavaPlugin implements Listener {
     public void onPlayerChat(PlayerChatEvent event) {
         Player player = event.getPlayer();
         String message = event.getMessage();
+        if (message.startsWith("@")) {
 
-        String[] words = message.split("、", 5);
+            summonArmorStand(player,message);
+            String[] words = message.split("、", 5);
+            String target = words.length > 0 ? words[0] : "";
+            String magicType = words.length > 1 ? words[1] : "";
+            String damage = words.length > 2 ? words[2] : "";
+            String time = words.length > 3 ? words[3] : "";
+            String particleType = words.length > 4 ? words[4] : "";
 
-        String word1 = words.length > 0 ? words[0] : "";
-        String word2 = words.length > 1 ? words[1] : "";
-        String word3 = words.length > 2 ? words[2] : "";
-        String word4 = words.length > 3 ? words[3] : "";
-        String word5 = words.length > 4 ? words[4] : "";
+            int lengthOfWord1 = target.length();
+            int lengthOfWord2 = magicType.length();
+            int lengthOfWord3 = damage.length();
+            int lengthOfWord4 = time.length() * 20;
+            int lengthOfWord5 = particleType.length();
+            int cost = lengthOfWord3 * lengthOfWord4 / 40;
+            // 対象の決定
+            int currentExp = player.getLevel();
+            // 必要な経験値が足りているかチェック
+            if (currentExp >= cost) {
+                // 経験値を減らす
+                player.setLevel(currentExp - cost);
+                if (hasConsecutiveCharacters(target)) {
+                    executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
+                } else if (hasConsecutiveCharacters(magicType)) {
+                    executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
+                } else if (hasConsecutiveCharacters(damage)) {
+                    executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
+                } else if (hasConsecutiveCharacters(time)) {
+                    executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
+                } else if (hasConsecutiveCharacters(particleType)) {
+                    executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
+                } else {
+                    switch (lengthOfWord1) {
+                        case 1://自分自身
+                            switch (lengthOfWord2) {
+                                case 1://自分を光らせる魔法
+                                    onPotionGive(player, GLOWING, lengthOfWord4, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    particle(player, lengthOfWord1);
+                                    break;
+                                case 2://自分を回復させる
+                                    onPotionGive(player, HEAL, lengthOfWord4, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    particle(player, lengthOfWord1);
+                                    break;
+                                case 3://自分のエフェクトを解除する
+                                    clearAllPotionEffects(player);
+                                    playMagicSound(player, lengthOfWord5);
+                                    particle(player, lengthOfWord1);
+                                    break;
+                                case 4://満腹度回復
+                                    onPotionGive(player, SATURATION, lengthOfWord4, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    particle(player, lengthOfWord1);
+                                    break;
+                                default://自分を燃やす魔法
+                                    ignitePlayer(player, lengthOfWord4 / 20);
+                                    playMagicSound(player, lengthOfWord5);
+                                    break;
+                            }
+                        case 2://対象１体
+                            switch (lengthOfWord2) {
+                                case 1://相手をひとり光らせる
+                                    onPointView(player, GLOWING, lengthOfWord4, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    particle(player, lengthOfWord1);
+                                    break;
+                                case 2://相手を一人光らせる
+                                    onPointView(player, HEAL, lengthOfWord4, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    particle(player, lengthOfWord1);
+                                    break;
+                                case 3://相手一人のエフェクトを解除する
+                                    clearEffectsFromTargetPlayer(player);
+                                    playMagicSound(player, lengthOfWord5);
+                                    particle(player, lengthOfWord1);
+                                    break;
+                                case 4://追尾する矢を召喚する
+                                    spawnHomingArrow(player, lengthOfWord3, lengthOfWord4);
+                                    playMagicSound(player, lengthOfWord5);
+                                    break;
+                                case 5://相手一人の満腹度を回復する
+                                    onPointView(player, SATURATION, lengthOfWord4, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    particle(player, lengthOfWord1);
+                                    break;
+                                case 6://正面にビームを発射する
+                                    onBeamSpawn(player, lengthOfWord3, lengthOfWord4);
+                                    playMagicSound(player, lengthOfWord5);
+                                    break;
+                                case 7://隕石を落とす
+                                    onMegaFlare(player, lengthOfWord4 / 20, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    break;
+                                case 8://相手を燃やす魔法
+                                    igniteEntityInSight(player, lengthOfWord4);
+                                    playMagicSound(player, lengthOfWord5);
+                                    break;
+                                case 9://炎の竜巻
+                                    summonFireTornado(player, lengthOfWord4 / 20, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    break;
+                                default://雪の吹雪の魔法。雪氷
+                                    castIceMagic(player, lengthOfWord4 / 20, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    break;
+                            }
+                        default://複数対象
+                            // それ以外の場合:
+                            switch (lengthOfWord2) {
+                                case 1://広範囲に爆発を行う
+                                    spawnTNT(player, lengthOfWord3, lengthOfWord4);
+                                    playMagicSound(player, lengthOfWord5);
+                                    break;
+                                case 2://広範囲に落雷を落とす
+                                    castLightningSpell(player, lengthOfWord4 / 20 * 2, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    break;
+                                case 3://広範囲にゾンビをわかせる
+                                    summonZombies(player, lengthOfWord4, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    break;
+                                default://広範囲にスケルトンをわかせる
+                                    skeletonSpawn(player, lengthOfWord3);
+                                    playMagicSound(player, lengthOfWord5);
+                                    break;
 
-        getLogger().info("Word 1: " + word1);//対象
-        getLogger().info("Word 2: " + word2);//発動効果
-        getLogger().info("Word 3: " + word3);//威力
-        getLogger().info("Word 4: " + word4);//効果時間
-        getLogger().info("Word 5: " + word5);//効果音
-        int lengthOfWord1 = word1.length();
-        int lengthOfWord3 = word3.length();
-        int lengthOfWord4 = word4.length() * 20;
-        int lengthOfWord5 = word5.length();
-        int cost = lengthOfWord3 * lengthOfWord4 / 40;
-        // 対象の決定
-        int currentExp = player.getLevel();
-        // 必要な経験値が足りているかチェック
-        if (currentExp >= cost) {
-            // 経験値を減らす
-            player.setLevel(currentExp - cost);
-            if (hasConsecutiveCharacters(word1)) {
-                executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
-            }
-            if (hasConsecutiveCharacters(word2)) {
-                executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
-            }
-            if (hasConsecutiveCharacters(word3)) {
-                executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
-            }
-            if (hasConsecutiveCharacters(word4)) {
-                executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
-            }
-            if (hasConsecutiveCharacters(word5)) {
-                executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
-            }
-
-            switch (lengthOfWord1) {
-                case 1://自分自身
-
-                    // word2の内容に基づく追加のチェック
-                    if (word2.contains("発光")) {
-                        onPotionGive(player, GLOWING, lengthOfWord4, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                        particle(player, lengthOfWord1);
-                    } else if (word2.contains("回復")) {
-                        onPotionGive(player, HEAL, lengthOfWord4, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                        particle(player, lengthOfWord1);
-                    } else if (word2.contains("削除")) {
-                        clearAllPotionEffects(player);
-                        playMagicSound(player, lengthOfWord5);
-                        particle(player, lengthOfWord1);
-                    } else if (word2.contains("満腹")) {
-                        onPotionGive(player, SATURATION, lengthOfWord4, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                        particle(player, lengthOfWord1);
-                    } else if (word2.contains("燃")) {
-                        ignitePlayer(player, lengthOfWord4 / 20);
-                        playMagicSound(player, lengthOfWord5);
-                    } else {
-                        onPotionGive(player, SLOW, lengthOfWord4, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                        deleteParticle(player, random.nextInt(2));
+                            }
                     }
-                    break;
-                case 2:
-                case 3://対象１体
-                    if (word2.contains("発光")) {
-                        onPointView(player, GLOWING, lengthOfWord4, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                        particle(player, lengthOfWord1);
-                    } else if (word2.contains("回復")) {
-                        onPointView(player, HEAL, lengthOfWord4, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                        particle(player, lengthOfWord1);
-                    } else if (word2.contains("削除")) {
-                        clearEffectsFromTargetPlayer(player);
-                        playMagicSound(player, lengthOfWord5);
-                        particle(player, lengthOfWord1);
-                    } else if (word2.contains("追尾")) {
-                        spawnHomingArrow(player, lengthOfWord3, lengthOfWord4);
-                        playMagicSound(player, lengthOfWord5);
-                    } else if (word2.contains("満腹")) {
-                        onPointView(player, SATURATION, lengthOfWord4, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                        particle(player, lengthOfWord1);
-                    } else if (word2.contains("怒れ")) {
-                        onBeamSpawn(player, lengthOfWord3, lengthOfWord4);
-                        playMagicSound(player, lengthOfWord5);
-                    } else if (word2.contains("散れ")) {
-                        onMegaFlare(player, lengthOfWord4 / 20, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                    } else if (word2.contains("燃")) {
-                        igniteEntityInSight(player, lengthOfWord4);
-                        playMagicSound(player, lengthOfWord5);
-                    } else if (word2.contains("炎の竜巻")) {
-                        summonFireTornado(player,lengthOfWord4,lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                    } else if (word2.contains("雪氷")) {
-                        castIceMagic(player,lengthOfWord3,lengthOfWord4);
-                        playMagicSound(player, lengthOfWord5);
-                    }else {
-                        onPotionGive(player, SLOW, lengthOfWord4, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                        deleteParticle(player, random.nextInt(2));
-                    }
-                    break;
-                default://複数対象
-                    // それ以外の場合:
-                    if (word2.contains("爆裂")) {
-                        spawnTNT(player, lengthOfWord3, lengthOfWord4);
-                        playMagicSound(player, lengthOfWord5);
-                    } else if (word2.contains("雷神")) {
-                        castLightningSpell(player, lengthOfWord4 / 20 * 2, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                    } else if (word2.contains("虚心")) {
-                        summonZombies(player, lengthOfWord4, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                    } else if (word2.contains("君臨")) {
-                        skeletonSpawn(player, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                    } else {
-                        onPotionGive(player, SLOW, lengthOfWord4, lengthOfWord3);
-                        playMagicSound(player, lengthOfWord5);
-                        deleteParticle(player, random.nextInt(2));
-                    }
-                    break;
+                }
+            } else {
+                // 経験値が不足している場合のメッセージ
+                player.sendMessage(cost + "レベル足りません。別のスペルで試してください。");
             }
-        } else {
-            // 経験値が不足している場合のメッセージ
-            player.sendMessage(cost + "レベル足りません。別のスペルで試してください。");
         }
     }
 
@@ -196,14 +195,46 @@ public final class MagicStone extends JavaPlugin implements Listener {
             Sound.ENTITY_BLAZE_SHOOT,               // 19
             Sound.ENTITY_ENDER_EYE_LAUNCH           // 20
     };
+    private void summonArmorStand(Player player, String text) {
+        // メッセージから「@」を取り除き、「、」も置換で除去
+        String processedText = text.substring(1).replace("、", "");
 
+        // 以降の処理は同じ
+        Location location = player.getLocation().add(0, 2, 0); // プレイヤーの頭上
+        ArmorStand armorStand = location.getWorld().spawn(location, ArmorStand.class);
+
+        armorStand.setVisible(false); // 防具立てを見えなくする
+        armorStand.setGravity(false); // 重力の影響を受けないようにする
+        armorStand.setCustomName(processedText); // 処理された名前を設定
+        armorStand.setCustomNameVisible(true); // 名前を表示
+
+        // モーションを適用し、3秒後に防具立てを消去
+        new BukkitRunnable() {
+            int ticks = 0;
+
+            @Override
+            public void run() {
+                if (ticks > 60) { // 3秒後
+                    armorStand.remove(); // 防具立てを消去
+                    this.cancel();
+                    return;
+                }
+
+                // 上方向にベクトルを適用
+                Vector vector = new Vector(0, 0.1, 0);
+                armorStand.setVelocity(vector);
+                ticks++;
+            }
+        }.runTaskTimer(this, 0L, 1L);
+    }
 
     private void executeMagicActions(Player player, int lengthOfWord3, int lengthOfWord4, int lengthOfWord5) {
         onPotionGive(player, PotionEffectType.SLOW, lengthOfWord4, lengthOfWord3);
         playMagicSound(player, lengthOfWord5);
         deleteParticle(player, random.nextInt(2));
     }
-    private void summonFireTornado(Player player,int timer,int attack) {
+
+    private void summonFireTornado(Player player, int timer, int attack) {
         new BukkitRunnable() {
             Location loc = player.getEyeLocation();
             Vector direction = loc.getDirection().normalize().multiply(0.5); // 竜巻の速度と方向
@@ -211,7 +242,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
             @Override
             public void run() {
-                if (ticks > 100) { // 竜巻の持続時間（例: 100ティック）
+                if (ticks > timer) { // 竜巻の持続時間（例: 100ティック）
                     this.cancel();
                     return;
                 }
@@ -224,7 +255,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 for (Entity entity : loc.getWorld().getNearbyEntities(loc, 1, 1, 1)) {
                     if (entity instanceof LivingEntity && entity != player) {
                         ((LivingEntity) entity).damage(attack); // 3ダメージ
-                        entity.setFireTicks(timer); // 3秒間炎上
+                        entity.setFireTicks(timer * 20); // 3秒間炎上
                     }
                 }
 
@@ -360,7 +391,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }
 
     }
-    private void castIceMagic(Player player,int time ,int damage) {
+
+    private void castIceMagic(Player player, int time, int damage) {
         new BukkitRunnable() {
             Location loc = player.getEyeLocation();
             Vector direction = loc.getDirection().normalize().multiply(0.5); // プレイヤーの向きに合わせた方向と速度
@@ -368,7 +400,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
             @Override
             public void run() {
-                if (ticks > 60) { // 魔法の持続時間
+                if (ticks > time) { // 魔法の持続時間
                     this.cancel();
                     return;
                 }
@@ -379,8 +411,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 for (Entity entity : loc.getWorld().getNearbyEntities(loc, 1, 1, 1)) {
                     if (entity instanceof LivingEntity && entity != player) {
                         LivingEntity target = (LivingEntity) entity;
-                        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 60, 100)); // 3秒間の移動速度低下
-                        target.damage((double) damage /2); // 継続ダメージ
+                        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, time, 100)); // 3秒間の移動速度低下
+                        target.damage((double) damage / 2); // 継続ダメージ
                     }
                 }
 
