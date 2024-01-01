@@ -76,7 +76,13 @@ public final class MagicStone extends JavaPlugin implements Listener {
             int currentExp = player.getLevel();
             // 必要な経験値が足りているかチェック
             if (currentExp >= cost) {
+                if (ConsecutiveCharacters(target) || ConsecutiveCharacters(magicType)
+                        || ConsecutiveCharacters(damage) || ConsecutiveCharacters(time)
+                        || ConsecutiveCharacters(particleType)) {
 
+                    player.sendMessage("メッセージに不正な形式が含まれています。");
+                    return; // 連続する文字が含まれているため、処理を中止
+                }
                 if (hasConsecutiveCharacters(target)) {
                     executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
                 } else if (hasConsecutiveCharacters(magicType)) {
@@ -352,6 +358,22 @@ public final class MagicStone extends JavaPlugin implements Listener {
             Sound.ENTITY_BLAZE_SHOOT,               // 19
             Sound.ENTITY_ENDER_EYE_LAUNCH           // 20
     };
+
+    private boolean ConsecutiveCharacters(String str) {
+        if (str == null || str.isEmpty()) {
+            return false;
+        }
+
+        char lastChar = str.charAt(0);
+        for (int i = 1; i < str.length(); i++) {
+            char currentChar = str.charAt(i);
+            if (currentChar == lastChar + 1 || currentChar == lastChar - 1) {
+                return true; // 連続する文字が見つかった
+            }
+            lastChar = currentChar;
+        }
+        return false; // 連続する文字が見つからなかった
+    }
     private void summonArmorStand(Player player, String text) {
         String processedText = text.substring(1).replace("、", "");
 
