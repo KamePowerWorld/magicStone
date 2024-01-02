@@ -1,6 +1,5 @@
 package com.github.kumo0621.magicstone;
 
-import com.theokanning.openai.completion.CompletionRequest;
 import com.theokanning.openai.completion.chat.*;
 import com.theokanning.openai.service.OpenAiService;
 import org.bukkit.*;
@@ -56,9 +55,10 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onPlayerChat(PlayerChatEvent event) {
-        ai();
+
         Player player = event.getPlayer();
         String message = event.getMessage();
+        ai(message);
         if (message.startsWith("@")) {
             event.setCancelled(true);
 
@@ -1049,12 +1049,11 @@ public final class MagicStone extends JavaPlugin implements Listener {
     }
 
 
-    public void ai() {
-        System.out.println("AIこき使わせてる");
+    public void ai(String gamePlayer) {
         String apiKey = key.api;
         OpenAiService service = new OpenAiService(apiKey);
         List<ChatMessage> messages = new ArrayList<>();
-        ChatMessage userMessage = new ChatMessage(ChatMessageRole.USER.value(), "自己紹介して");
+        ChatMessage userMessage = new ChatMessage(ChatMessageRole.USER.value(), "次の文章の、採点を行って具体的な魔法のステータスを決めてください。"+gamePlayer+"対象を、自分or敵or範囲の中から1つ。魔法の種類を、攻撃、バフ、、回復、その他、の中から1つ。文章に応じて威力、効果範囲、すべての数値を1~50の中で決める。返答メッセージに余分なものはつけず、決めたものだけ書き出してください。");
         messages.add(userMessage);
         ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest
                 .builder()
@@ -1062,13 +1061,11 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 .messages(messages)
                 .maxTokens(256)
                 .build();
-        System.out.println("レスポンススタート");
         service.streamChatCompletion(chatCompletionRequest).subscribeWith(new Subscriber<ChatCompletionChunk>() {
             private Subscription subscription;
             private StringBuilder sb = new StringBuilder();
             @Override
             public void onSubscribe(Subscription subscription) {
-                System.out.printf("サブスクライブ！！！");
 
                 this.subscription = subscription;
                 subscription.request(1);
@@ -1093,6 +1090,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             @Override
             public void onComplete() {
                 System.out.println(sb.toString());
+
             }
         });
     }
