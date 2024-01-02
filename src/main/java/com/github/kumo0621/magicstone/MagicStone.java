@@ -52,13 +52,34 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
         }
     }
+    @EventHandler
+    public void onPlayerChat2(PlayerChatEvent event) {
+        Player player = event.getPlayer();
+        String message = event.getMessage();
+        String status = aiReturn.ai(message);
+        if (status.matches("自分")) {
+            System.out.println("文字列は '自分' です。");
+        }
+        // 敵に一致するかチェック
+        else if (status.matches("敵")) {
+            System.out.println("文字列は '敵' です。");
+        }
+        // 範囲に一致するかチェック
+        else if (status.matches("範囲")) {
+            System.out.println("文字列は '範囲' です。");
+        }
+        // どれにも一致しない場合
+        else {
+            System.out.println("文字列は '自分'、'敵'、'範囲' のいずれでもありません。");
+        }
+    }
+
 
     @EventHandler
     public void onPlayerChat(PlayerChatEvent event) {
 
         Player player = event.getPlayer();
         String message = event.getMessage();
-        ai(message);
         if (message.startsWith("@")) {
             event.setCancelled(true);
 
@@ -1047,52 +1068,4 @@ public final class MagicStone extends JavaPlugin implements Listener {
             player.damage(damage);
         }
     }
-
-
-    public void ai(String gamePlayer) {
-        String apiKey = key.api;
-        OpenAiService service = new OpenAiService(apiKey);
-        List<ChatMessage> messages = new ArrayList<>();
-        ChatMessage userMessage = new ChatMessage(ChatMessageRole.USER.value(), "次の文章の、採点を行って具体的な魔法のステータスを決めてください。"+gamePlayer+"対象を、自分or敵or範囲の中から1つ。魔法の種類を、攻撃、バフ、、回復、その他、の中から1つ。文章に応じて威力、効果範囲、すべての数値を1~50の中で決める。返答メッセージに余分なものはつけず、決めたものだけ書き出してください。");
-        messages.add(userMessage);
-        ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest
-                .builder()
-                .model("gpt-3.5-turbo-0613")
-                .messages(messages)
-                .maxTokens(256)
-                .build();
-        service.streamChatCompletion(chatCompletionRequest).subscribeWith(new Subscriber<ChatCompletionChunk>() {
-            private Subscription subscription;
-            private StringBuilder sb = new StringBuilder();
-            @Override
-            public void onSubscribe(Subscription subscription) {
-
-                this.subscription = subscription;
-                subscription.request(1);
-            }
-
-            @Override
-            public void onNext(ChatCompletionChunk chatCompletionChunk) {
-                String content = chatCompletionChunk.getChoices().get(0).getMessage().getContent();
-                if(content!=null) {
-                    sb.append(content);
-                }
-                // 次の応答チャンクをリクエスト
-                subscription.request(1);
-
-            }
-
-            @Override
-            public void onError(Throwable throwable) {
-                System.out.println("error");
-            }
-
-            @Override
-            public void onComplete() {
-                System.out.println(sb.toString());
-
-            }
-        });
-    }
-
 }
