@@ -1,15 +1,14 @@
 package com.github.kumo0621.magicstone;
 
+import com.theokanning.openai.completion.CompletionRequest;
+import com.theokanning.openai.completion.chat.*;
+import com.theokanning.openai.service.OpenAiService;
 import org.bukkit.*;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerChatEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.PotionMeta;
@@ -19,9 +18,10 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.scoreboard.Team;
 import org.bukkit.util.Vector;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+
 
 import java.util.*;
 
@@ -31,10 +31,12 @@ public final class MagicStone extends JavaPlugin implements Listener {
     private final Map<UUID, Integer> playerExpUsage = new HashMap<>();
     Random random = new Random();
     private Map<UUID, EnderCrystal> playerCrystals = new HashMap<>();
+
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
     }
+
     @EventHandler
     public void onEntityDamage(EntityDamageEvent event) {
         if (event.getEntity() instanceof Player) {
@@ -51,9 +53,10 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
         }
     }
+
     @EventHandler
     public void onPlayerChat(PlayerChatEvent event) {
-
+        ai();
         Player player = event.getPlayer();
         String message = event.getMessage();
         if (message.startsWith("@")) {
@@ -183,7 +186,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
                                     break;
-                            }break;
+                            }
+                            break;
                         case 3://対象１体
                             switch (lengthOfWord2) {
                                 case 1://相手をひとり光らせる
@@ -276,7 +280,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
                                     playMagicSound(player, lengthOfWord5);
                                     break;
 
-                            }break;
+                            }
+                            break;
                         default://複数対象
                             // それ以外の場合:
                             switch (lengthOfWord2) {
@@ -312,7 +317,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                                     break;
                                 case 11://周りに水スプラッシュを出す
                                 case 12:
-                                    castRandomSplashSpell(player,lengthOfWord3,lengthOfWord4);
+                                    castRandomSplashSpell(player, lengthOfWord3, lengthOfWord4);
                                     playMagicSound(player, lengthOfWord5);
                                     particle(player, lengthOfWord1);
                                     break;
@@ -322,11 +327,12 @@ public final class MagicStone extends JavaPlugin implements Listener {
                                     particle(player, lengthOfWord1);
                                     break;
 
-                            }break;
+                            }
+                            break;
                     }
                     // 経験値を減らす
                     player.setLevel(currentExp - cost);
-                    summonArmorStand(player,message);
+                    summonArmorStand(player, message);
                 }
             } else {
                 // 経験値が不足している場合のメッセージ
@@ -374,6 +380,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }
         return false; // 連続する文字が見つからなかった
     }
+
     private void summonArmorStand(Player player, String text) {
         String processedText = text.substring(1).replace("、", "");
 
@@ -402,6 +409,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
         }.runTaskTimer(this, 0L, 1L); // ティックごとにタスクを実行
     }
+
     private void equipBoneHelmet(Player player) {
         PlayerInventory inventory = player.getInventory();
         ItemStack helmet = new ItemStack(Material.BONE);
@@ -417,6 +425,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
         // 骨を頭に装備
         inventory.setHelmet(helmet);
     }
+
     private void castWaterSplashSpell(Player player) {
         ItemStack potionItem = new ItemStack(Material.SPLASH_POTION);
         PotionMeta meta = (PotionMeta) potionItem.getItemMeta();
@@ -427,12 +436,14 @@ public final class MagicStone extends JavaPlugin implements Listener {
         thrownPotion.setItem(potionItem);
         thrownPotion.setVelocity(player.getLocation().getDirection().multiply(1.5));
     }
-    private void shootPowerfulArrow(Player player,int time) {
+
+    private void shootPowerfulArrow(Player player, int time) {
         Arrow arrow = player.launchProjectile(Arrow.class);
         Vector direction = player.getLocation().getDirection();
         arrow.setVelocity(direction.multiply(time)); // 高速で発射
-        arrow.setDamage((double) time /20*1.25); // 威力を設定
+        arrow.setDamage((double) time / 20 * 1.25); // 威力を設定
     }
+
     private void castRandomSplashSpell(Player player, int count, int time) {
         for (int i = 0; i < count; i++) {
             getServer().getScheduler().runTaskLater(this, () -> {
@@ -453,6 +464,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }, random.nextInt(time)); // ランダムな遅延（最大3秒）
         }
     }
+
     private void warpPlayer(Player player, int power) {
         Location location = player.getLocation();
         Vector direction = location.getDirection().setY(0).normalize(); // Y軸成分を0にして平面上での方向を取得
@@ -479,6 +491,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
         }
     }
+
     private void summonEnderCrystal(Player player) {
         if (playerCrystals.containsKey(player.getUniqueId())) {
             player.sendMessage("すでにエンドクリスタルを持っています。");
@@ -489,7 +502,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
         EnderCrystal crystal = player.getWorld().spawn(spawnLocation, EnderCrystal.class);
         playerCrystals.put(player.getUniqueId(), crystal);
     }
-    private void createExplosionAtSight(Player player,int time,int coalTime) {
+
+    private void createExplosionAtSight(Player player, int time, int coalTime) {
         Location eyeLocation = player.getEyeLocation();
         Vector direction = eyeLocation.getDirection();
         Location targetLocation = eyeLocation.add(direction.multiply(5)); // 視点から一定距離の位置
@@ -499,7 +513,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
             @Override
             public void run() {
-                if (count >= time/20) { // 5秒 x 12 = 60秒
+                if (count >= time / 20) { // 5秒 x 12 = 60秒
                     this.cancel();
                     return;
                 }
@@ -509,7 +523,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
         }.runTaskTimer(this, 0L, 100L); // 100ティック（5秒）ごとに実行
     }
-    private void summonEnderDragon(Player player,int time) {
+
+    private void summonEnderDragon(Player player, int time) {
         Location spawnLocation = player.getLocation().add(player.getLocation().getDirection().multiply(10));
         EnderDragon dragon = (EnderDragon) player.getWorld().spawnEntity(spawnLocation, EntityType.ENDER_DRAGON);
 
@@ -524,6 +539,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
         }.runTaskLater(this, time); // 200ティック後に実行（10秒）
     }
+
     private void castFlowerSpell(Player player, int flowerCount, int numberOfFlowers) {
         Location playerLocation = player.getLocation();
         Random random = new Random();
@@ -550,11 +566,13 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
         }.runTaskTimer(this, 0L, 20L); // 1秒ごとに実行
     }
+
     private void executeMagicActions(Player player, int lengthOfWord3, int lengthOfWord4, int lengthOfWord5) {
         onPotionGive(player, PotionEffectType.SLOW, lengthOfWord4, lengthOfWord3);
         playMagicSound(player, lengthOfWord5);
         deleteParticle(player, random.nextInt(2));
     }
+
     private void castRainSpell(Player player) {
         World world = player.getWorld();
         world.setStorm(true); // 雨を降らせる
@@ -716,7 +734,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                         LivingEntity target = null;
                         double closestDistance = Double.MAX_VALUE;
                         for (Entity entity : arrow.getNearbyEntities(10, 10, 10)) {
-                            if (entity instanceof LivingEntity && !(entity instanceof Player)&& !(entity instanceof ArmorStand)) {
+                            if (entity instanceof LivingEntity && !(entity instanceof Player) && !(entity instanceof ArmorStand)) {
                                 double distance = entity.getLocation().distanceSquared(arrow.getLocation());
                                 if (distance < closestDistance) {
                                     closestDistance = distance;
@@ -736,6 +754,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }
 
     }
+
     private void spawnHomingTNT(Player player, int numberOfTNT, int fuseTicks) {
         if (player.getWorld().getEnvironment() != World.Environment.THE_END) {
             player.sendMessage("エンドにいないと使えません。");
@@ -760,7 +779,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                         LivingEntity target = null;
                         double closestDistance = Double.MAX_VALUE;
                         for (Entity entity : tnt.getNearbyEntities(10, 10, 10)) {
-                            if (entity instanceof LivingEntity && !(entity instanceof Player)&& !(entity instanceof ArmorStand)) {
+                            if (entity instanceof LivingEntity && !(entity instanceof Player) && !(entity instanceof ArmorStand)) {
                                 double distance = entity.getLocation().distanceSquared(tnt.getLocation());
                                 if (distance < closestDistance) {
                                     closestDistance = distance;
@@ -779,6 +798,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }, fuseTicks / 20L * i); // i秒後にTNTを発射
         }
     }
+
     private void castIceMagic(Player player, int time, int damage) {
         new BukkitRunnable() {
             Location loc = player.getEyeLocation();
@@ -945,6 +965,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             target.addPotionEffect(potionEffect);
         }
     }
+
     private void castSanGekiMagic(Player player, int attackCount, double damageSu) {
         LivingEntity target = getTargetEntity(player);
         if (target == null) {
@@ -962,7 +983,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 }
 
                 // ターゲットにダメージを与える
-                target.damage(damageSu/2);
+                target.damage(damageSu / 2);
 
                 // パーティクルと音を再生
                 Location loc = target.getLocation();
@@ -973,6 +994,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
         }.runTaskTimer(this, 0L, 5L); // 連撃間の遅延を設定（ここでは5ティック）
     }
+
     private LivingEntity getTargetEntity(Player player) {
         List<Entity> nearbyEntities = player.getNearbyEntities(50, 50, 50); // 距離は必要に応じて調整
         Vector playerDirection = player.getLocation().getDirection().normalize();
@@ -1012,11 +1034,12 @@ public final class MagicStone extends JavaPlugin implements Listener {
         target.setFireTicks(duration);
 
     }
-    private void castVampiricSpell(Player player, int damage ,int targetHpBind) {
+
+    private void castVampiricSpell(Player player, int damage, int targetHpBind) {
         LivingEntity target = getTargetEntity(player);
         if (target != null && target != player) {
             // ターゲットから体力を吸収
-            double healthToSteal = Math.min((double) targetHpBind /20, target.getHealth());
+            double healthToSteal = Math.min((double) targetHpBind / 20, target.getHealth());
             target.setHealth(Math.max(target.getHealth() - healthToSteal, 0));
             player.setHealth(Math.min(player.getHealth() + healthToSteal, player.getMaxHealth()));
         } else {
@@ -1024,4 +1047,54 @@ public final class MagicStone extends JavaPlugin implements Listener {
             player.damage(damage);
         }
     }
+
+
+    public void ai() {
+        System.out.println("AIこき使わせてる");
+        String apiKey = key.api;
+        OpenAiService service = new OpenAiService(apiKey);
+        List<ChatMessage> messages = new ArrayList<>();
+        ChatMessage userMessage = new ChatMessage(ChatMessageRole.USER.value(), "自己紹介して");
+        messages.add(userMessage);
+        ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest
+                .builder()
+                .model("gpt-3.5-turbo-0613")
+                .messages(messages)
+                .maxTokens(256)
+                .build();
+        System.out.println("レスポンススタート");
+        service.streamChatCompletion(chatCompletionRequest).subscribeWith(new Subscriber<ChatCompletionChunk>() {
+            private Subscription subscription;
+            private StringBuilder sb = new StringBuilder();
+            @Override
+            public void onSubscribe(Subscription subscription) {
+                System.out.printf("サブスクライブ！！！");
+
+                this.subscription = subscription;
+                subscription.request(1);
+            }
+
+            @Override
+            public void onNext(ChatCompletionChunk chatCompletionChunk) {
+                String content = chatCompletionChunk.getChoices().get(0).getMessage().getContent();
+                if(content!=null) {
+                    sb.append(content);
+                }
+                // 次の応答チャンクをリクエスト
+                subscription.request(1);
+
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                System.out.println("error");
+            }
+
+            @Override
+            public void onComplete() {
+                System.out.println(sb.toString());
+            }
+        });
+    }
+
 }
