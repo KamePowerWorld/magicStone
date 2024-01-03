@@ -1,39 +1,50 @@
 package com.github.kumo0621.magicstone;
 
-import com.theokanning.openai.completion.chat.*;
-import com.theokanning.openai.service.OpenAiService;
+import com.google.gson.*;
 import org.bukkit.*;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerChatEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionData;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
-
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.bukkit.potion.PotionEffectType.*;
 
 public final class MagicStone extends JavaPlugin implements Listener {
     private final Map<UUID, Integer> playerExpUsage = new HashMap<>();
+    private static MagicStone instance;
     Random random = new Random();
     private Map<UUID, EnderCrystal> playerCrystals = new HashMap<>();
 
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
+        saveDefaultConfig();
+        instance = this;
+    }
+
+    public static MagicStone getInstance() {
+        return instance;
     }
 
     @EventHandler
@@ -52,316 +63,398 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
         }
     }
+
     @EventHandler
     public void onPlayerChat2(PlayerChatEvent event) {
         Player player = event.getPlayer();
         String message = event.getMessage();
-        String status = aiReturn.ai(message);
-        if (status.matches("自分")) {
-            System.out.println("文字列は '自分' です。");
+        if (message.startsWith("@")) {
+            aiReturn.ai(message, player);
+
         }
-        // 敵に一致するかチェック
-        else if (status.matches("敵")) {
-            System.out.println("文字列は '敵' です。");
+    }
+
+    public void giveAiMessage(Player player, String message, String status) {
+        Random random = new Random();
+        JsonObject aiData = null;
+        try {
+            JsonElement jsonElement = JsonParser.parseString(status);
+            if (jsonElement.isJsonObject()) {
+                aiData = jsonElement.getAsJsonObject();
+            }
+        } catch (JsonSyntaxException ignored) {
+
         }
-        // 範囲に一致するかチェック
-        else if (status.matches("範囲")) {
-            System.out.println("文字列は '範囲' です。");
+        if (aiData != null) {
+            String target = aiData.get("対象").getAsString();    // 対象
+            String magicType = aiData.get("魔法の種類").getAsString();  // 魔法の種類
+            int power = aiData.get("威力").getAsInt();  // 威力
+            int range = aiData.get("効果範囲").getAsInt();    // 効果範囲
+            int effectType = random.nextInt(20);
+            int magicNumber = random.nextInt(9);
+
+            giveCustomCarrotStick(player, message, target, magicNumber, magicType, power, range, effectType);
+        } else {
+            player.sendMessage("無効なスペルです。");
+
         }
-        // どれにも一致しない場合
-        else {
-            System.out.println("文字列は '自分'、'敵'、'範囲' のいずれでもありません。");
+    }
+
+    public MagicData getItemData(ItemMeta itemMeta) {
+        PersistentDataContainer data = itemMeta.getPersistentDataContainer();
+        @Nullable PersistentDataContainer magicData = data.get(new NamespacedKey(this, "magicData"), PersistentDataType.TAG_CONTAINER);
+        if (magicData == null) {
+            return null;
         }
+        int magicNumber = magicData.get(new NamespacedKey(this, "magicNumber"), PersistentDataType.INTEGER);
+        String magicType = magicData.get(new NamespacedKey(this, "magicType"), PersistentDataType.STRING);
+        String target = magicData.get(new NamespacedKey(this, "target"), PersistentDataType.STRING);
+        int power = magicData.get(new NamespacedKey(this, "power"), PersistentDataType.INTEGER);
+        int range = magicData.get(new NamespacedKey(this, "range"), PersistentDataType.INTEGER);
+        int effect = magicData.get(new NamespacedKey(this, "effect"), PersistentDataType.INTEGER);
+        String message = magicData.get(new NamespacedKey(this, "message"), PersistentDataType.STRING);
+
+        // MagicData オブジェクトの生成
+        return new MagicData(magicNumber, magicType, target, power, range, effect, message);
+
+    }
+
+
+    public void setItemData(ItemMeta itemMeta, String message, String target, int magicNumber, String magicType, int power, int range, int effectType) {
+        PersistentDataContainer data = itemMeta.getPersistentDataContainer();
+        @Nullable PersistentDataContainer magicData = data.get(new NamespacedKey(this, "magicData"), PersistentDataType.TAG_CONTAINER);
+        if (magicData == null) {
+            magicData = data.getAdapterContext().newPersistentDataContainer();
+        }
+        magicData.set(new NamespacedKey(this, "magicNumber"), PersistentDataType.INTEGER, magicNumber);
+        magicData.set(new NamespacedKey(this, "magicType"), PersistentDataType.STRING, magicType);
+        magicData.set(new NamespacedKey(this, "target"), PersistentDataType.STRING, target);
+        magicData.set(new NamespacedKey(this, "power"), PersistentDataType.INTEGER, power);
+        magicData.set(new NamespacedKey(this, "range"), PersistentDataType.INTEGER, range);
+        magicData.set(new NamespacedKey(this, "effect"), PersistentDataType.INTEGER, effectType);
+        magicData.set(new NamespacedKey(this, "message"), PersistentDataType.STRING, message);
+        data.set(new NamespacedKey(this, "magicData"), PersistentDataType.TAG_CONTAINER, magicData);
+
+    }
+
+
+    public void giveCustomCarrotStick(Player player, String message, String target, int magicNumber, String magicType, int power, int range, int effectType) {
+        // ニンジン付き棒のアイテムスタックを生成
+        ItemStack carrotStick = new ItemStack(Material.CARROT_ON_A_STICK);
+        // アイテムメタデータを取得して編集
+        ItemMeta meta = carrotStick.getItemMeta();
+        if (meta != null) {
+
+            // 名前を設定（カラーコードで装飾可能）
+            meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', message));
+            setItemData(meta, message, target, magicNumber, magicType, power, range, effectType);
+            // アイテムスタックにメタデータを設定
+            carrotStick.setItemMeta(meta);
+        }
+        // プレイヤーのインベントリにアイテムを追加
+        player.getInventory().addItem(carrotStick);
     }
 
 
     @EventHandler
-    public void onPlayerChat(PlayerChatEvent event) {
-
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        // プレイヤーが持っているアイテムを取得
+        ItemStack item = event.getItem();
         Player player = event.getPlayer();
-        String message = event.getMessage();
-        if (message.startsWith("@")) {
-            event.setCancelled(true);
+        // アイテムがニンジン付き棒であるかチェック
+        if (item != null && item.getType() == Material.CARROT_ON_A_STICK) {
+            // アイテムメタデータを取得
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null) {
+                MagicData magicData = getItemData(meta);
+                if (magicData != null) {
+                    Magic(player, magicData);
 
-            String[] words = message.split("、", 5);
-            String target = words.length > 0 ? words[0] : "";
-            String magicType = words.length > 1 ? words[1] : "";
-            String damage = words.length > 2 ? words[2] : "";
-            String time = words.length > 3 ? words[3] : "";
-            String particleType = words.length > 4 ? words[4] : "";
-
-            int lengthOfWord1 = target.length();
-            int lengthOfWord2 = magicType.length();
-            int lengthOfWord3 = damage.length();
-            int lengthOfWord4 = time.length() * 20;
-            int lengthOfWord5 = particleType.length();
-            int cost = lengthOfWord3 * lengthOfWord4 / 40;
-            // 対象の決定
-            int currentExp = player.getLevel();
-            // 必要な経験値が足りているかチェック
-            if (currentExp >= cost) {
-                if (ConsecutiveCharacters(target) || ConsecutiveCharacters(magicType)
-                        || ConsecutiveCharacters(damage) || ConsecutiveCharacters(time)
-                        || ConsecutiveCharacters(particleType)) {
-
-                    player.sendMessage("メッセージに不正な形式が含まれています。");
-                    return; // 連続する文字が含まれているため、処理を中止
                 }
-                if (hasConsecutiveCharacters(target)) {
-                    executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
-                } else if (hasConsecutiveCharacters(magicType)) {
-                    executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
-                } else if (hasConsecutiveCharacters(damage)) {
-                    executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
-                } else if (hasConsecutiveCharacters(time)) {
-                    executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
-                } else if (hasConsecutiveCharacters(particleType)) {
-                    executeMagicActions(player, lengthOfWord3, lengthOfWord4, lengthOfWord5);
-                } else {
-                    switch (lengthOfWord1) {
-                        case 1://自分自身
-                        case 2:
-                            switch (lengthOfWord2) {
-                                case 1://自分を光らせる魔法
-                                case 2:
-                                    onPotionGive(player, GLOWING, lengthOfWord4, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 3://自分を回復させる
-                                case 4:
-                                    onPotionGive(player, HEAL, lengthOfWord4, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 5://自分のエフェクトを解除する
-                                case 6:
-                                    clearAllPotionEffects(player);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 7://満腹度回復
-                                case 8:
-                                    onPotionGive(player, SATURATION, lengthOfWord4, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 9://自分にどく
-                                case 10:
-                                    onPotionGive(player, POISON, lengthOfWord4, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 11://雨を降らす
-                                case 12:
-                                    castRainSpell(player);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 13://かめすたを呼び出す
-                                case 14:
-                                    String response = ChatColor.GOLD + "<システム> プログラミングの先生かめすたを呼び出した。" +
-                                            "\nしかし、かめすたは忙しかった。直接話しかけてみよう。";
-                                    event.getPlayer().sendMessage(response);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 15://2秒無敵
-                                case 16:
-                                    onPointView(player, PotionEffectType.DAMAGE_RESISTANCE, 2, 10); // 例: 耐性効果を適用
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 17://肩代わりクリスタル
-                                case 18:
-                                    summonEnderCrystal(player);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 19://自分を燃やす
-                                case 20:
-                                    ignitePlayer(player, lengthOfWord4 / 20);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 21://骨をつける
-                                case 22:
-                                    equipBoneHelmet(player);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 23://暗視をつける
-                                case 24:
-                                    onPointView(player, NIGHT_VISION, lengthOfWord4, lengthOfWord3); // 例: 耐性効果を適用
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 25://2秒無敵
-                                case 26:
-                                    onPointView(player, PotionEffectType.BLINDNESS, 3, lengthOfWord3); // 例: 耐性効果を適用
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                default://高速移動
-                                    warpPlayer(player, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                            }
-                            break;
-                        case 3://対象１体
-                            switch (lengthOfWord2) {
-                                case 1://相手をひとり光らせる
-                                case 2:
-                                    onPointView(player, GLOWING, lengthOfWord4, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 3://相手を一人光らせる
-                                case 4:
-                                    onPointView(player, HEAL, lengthOfWord4, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 5://相手一人のエフェクトを解除する
-                                case 6:
-                                    clearEffectsFromTargetPlayer(player);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 7://追尾する矢を召喚する
-                                case 8:
-                                    spawnHomingArrow(player, lengthOfWord3, lengthOfWord4);
-                                    playMagicSound(player, lengthOfWord5);
-                                    break;
-                                case 9://相手一人の満腹度を回復する
-                                case 10:
-                                    onPointView(player, SATURATION, lengthOfWord4, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 11://正面にビームを発射する
-                                case 12:
-                                    onBeamSpawn(player, lengthOfWord3, lengthOfWord4);
-                                    playMagicSound(player, lengthOfWord5);
-                                    break;
-                                case 13://隕石を落とす
-                                case 14:
-                                    onMegaFlare(player, lengthOfWord4 / 20, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    break;
-                                case 15://相手を燃やす魔法
-                                case 16:
-                                    igniteEntityInSight(player, lengthOfWord4);
-                                    playMagicSound(player, lengthOfWord5);
-                                    break;
-                                case 17://炎の竜巻
-                                case 18:
-                                    summonFireTornado(player, lengthOfWord4 / 20, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    break;
-                                case 19://エンダードラゴン発信
-                                case 20:
-                                    summonEnderDragon(player, lengthOfWord4);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 21://斬撃
-                                case 22:
-                                    castSanGekiMagic(player, lengthOfWord4, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 23://ホーミングTNT
-                                case 24:
-                                    spawnHomingTNT(player, lengthOfWord3, lengthOfWord4);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 25://きゅうあゆう
-                                case 26:
-                                    castVampiricSpell(player, lengthOfWord3, lengthOfWord4);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 27://高速で矢を発射する
-                                case 28:
-                                    shootPowerfulArrow(player, lengthOfWord4);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 29://高速で矢を発射する
-                                case 30:
-                                    castWaterSplashSpell(player);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                default://雪の吹雪の魔法。雪氷
-                                    castIceMagic(player, lengthOfWord4 / 20, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    break;
 
-                            }
-                            break;
-                        default://複数対象
-                            // それ以外の場合:
-                            switch (lengthOfWord2) {
-                                case 1://広範囲に爆発を行う
-                                case 2:
-                                    spawnTNT(player, lengthOfWord3, lengthOfWord4);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 3://広範囲に落雷を落とす
-                                case 4:
-                                    castLightningSpell(player, lengthOfWord4 / 20 * 2, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 5://広範囲にゾンビをわかせる
-                                case 6:
-                                    summonZombies(player, lengthOfWord4, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 7://お花をわかせる
-                                case 8:
-                                    castFlowerSpell(player, lengthOfWord3, lengthOfWord4);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 9://爆発トラップ
-                                case 10:
-                                    createExplosionAtSight(player, lengthOfWord4, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                case 11://周りに水スプラッシュを出す
-                                case 12:
-                                    castRandomSplashSpell(player, lengthOfWord3, lengthOfWord4);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-                                default://広範囲にスケルトンをわかせる
-                                    skeletonSpawn(player, lengthOfWord3);
-                                    playMagicSound(player, lengthOfWord5);
-                                    particle(player, lengthOfWord1);
-                                    break;
-
-                            }
-                            break;
-                    }
-                    // 経験値を減らす
-                    player.setLevel(currentExp - cost);
-                    summonArmorStand(player, message);
-                }
-            } else {
-                // 経験値が不足している場合のメッセージ
-                player.sendMessage(cost + "レベル必要です。別のスペルで試してください。");
             }
         }
-
     }
+
+
+    public void Magic(Player player, MagicData magicData) {
+        int cost = magicData.getPower() * magicData.getRange() / 40 + magicData.getEffect();
+        int currentExp = player.getLevel();
+        // 必要な経験値が足りているかチェック
+        if (currentExp >= cost) {
+            switch (magicData.getTarget()) {
+                case "自分" -> {
+                    switch (magicData.getMagicType()) {
+                        case "攻撃" -> {
+                            onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                            playMagicSound(player, magicData.getEffect());
+                            particle(player, magicData.getMagicNumber());
+                        }
+                        case "バフ" -> {
+                            switch (magicData.getMagicNumber()) {
+                                case 1 -> {
+                                    onPotionGive(player, GLOWING, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 2 -> {
+                                    onPotionGive(player, POISON, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 3 -> {
+                                    onPointView(player, PotionEffectType.DAMAGE_RESISTANCE, 2, 10); // 例: 耐性効果を適用
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 4 -> {
+                                    ignitePlayer(player, magicData.getRange() / 20);
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 5 -> {
+                                    onPointView(player, NIGHT_VISION, magicData.getRange(), magicData.getPower()); // 例: 耐性効果を適用
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 6 -> {
+                                    onPointView(player, PotionEffectType.BLINDNESS, 3, magicData.getPower()); // 例: 耐性効果を適用
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                default -> {
+                                    onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                            }
+                        }
+                        case "回復" -> {
+                            switch (magicData.getMagicNumber()) {
+                                case 1 -> {
+                                    onPotionGive(player, HEAL, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 2 -> {
+                                    clearAllPotionEffects(player);
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 3 -> {
+                                    onPotionGive(player, SATURATION, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                default -> {
+                                    onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                            }
+                        }
+                        default -> {//例外
+                            switch (magicData.getMagicNumber()) {
+                                case 1 -> {
+                                    castRainSpell(player);
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 2 -> {
+                                    String response = ChatColor.GOLD + "<システム> プログラミングの先生かめすたを呼び出した。" +
+                                            "\nしかし、かめすたは忙しかった。直接話しかけてみよう。";
+                                    player.getPlayer().sendMessage(response);
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 3 -> {
+                                    equipBoneHelmet(player);
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                default -> {
+                                    onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                            }
+                        }
+                    }
+                }
+                case "敵" -> {
+                    switch (magicData.getMagicType()) {
+                        case "攻撃" -> {
+                            switch (magicData.getMagicNumber()) {
+                                case 1 -> {
+                                    spawnHomingArrow(player, magicData.getPower(), magicData.getRange());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 2 -> {
+                                    onBeamSpawn(player, magicData.getPower(), magicData.getRange());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 3 -> {
+                                    onMegaFlare(player, magicData.getRange() / 20, magicData.getPower() / 2);
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 4 -> {
+                                    summonEnderDragon(player, magicData.getRange());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 5 -> {
+                                    castSanGekiMagic(player, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 6 -> {
+                                    castVampiricSpell(player, magicData.getPower(), magicData.getRange());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 7 -> {
+                                    shootPowerfulArrow(player, magicData.getRange());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 8 -> {
+                                    castWaterSplashSpell(player);
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 9 -> {
+                                    castIceMagic(player, magicData.getRange() / 20, magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                default -> {
+                                    onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                            }
+                        }
+                        case "バフ" -> {
+                            switch (magicData.getMagicNumber()) {
+                                case 1 -> {
+                                    onPointView(player, GLOWING, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 2 -> {
+                                    onPointView(player, HEAL, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 3 -> {
+                                    onPointView(player, SATURATION, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 4 -> {
+                                    igniteEntityInSight(player, magicData.getRange());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                default -> {
+                                    onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                            }
+                        }
+                        case "回復" -> {
+                            onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                            playMagicSound(player, magicData.getEffect());
+                            particle(player, magicData.getMagicNumber());
+                        }
+                        default -> {//例外
+                            switch (magicData.getMagicNumber()) {
+                                case 1 -> {
+                                    clearEffectsFromTargetPlayer(player);
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                default -> {
+                                    onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                            }
+                        }
+                    }
+                }
+                case "範囲" -> {
+                    switch (magicData.getMagicType()) {
+                        case "攻撃" -> {
+                            switch (magicData.getMagicNumber()) {
+                                case 1 -> {
+                                    summonFireTornado(player, magicData.getRange() / 20, magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 2 -> {
+                                    castLightningSpell(player, magicData.getRange() / 20 * 2, magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 3 -> {
+                                    summonZombies(player, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 4 -> {
+                                    skeletonSpawn(player, magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                default -> {
+                                    onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+
+                            }
+                        }
+                        case "バフ" -> {
+                            onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                            playMagicSound(player, magicData.getEffect());
+                            particle(player, magicData.getMagicNumber());
+                        }
+                        case "回復" -> {
+                            onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                            playMagicSound(player, magicData.getEffect());
+                            particle(player, magicData.getMagicNumber());
+                        }
+                        default -> {//例外
+                            switch (magicData.getMagicNumber()) {
+                                case 1 -> {
+                                    castFlowerSpell(player, magicData.getPower(), magicData.getRange());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                case 2 -> {
+                                    castRandomSplashSpell(player, magicData.getPower(), magicData.getRange());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                                default -> {
+                                    onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
+                                    playMagicSound(player, magicData.getEffect());
+                                    particle(player, magicData.getMagicNumber());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            player.setLevel(currentExp - cost);
+        }
+    }
+
 
     private static final Sound[] magicSounds = {
             Sound.BLOCK_ENCHANTMENT_TABLE_USE,      // 1
@@ -386,50 +479,6 @@ public final class MagicStone extends JavaPlugin implements Listener {
             Sound.ENTITY_ENDER_EYE_LAUNCH           // 20
     };
 
-    private boolean ConsecutiveCharacters(String str) {
-        if (str == null || str.isEmpty()) {
-            return false;
-        }
-
-        char lastChar = str.charAt(0);
-        for (int i = 1; i < str.length(); i++) {
-            char currentChar = str.charAt(i);
-            if (currentChar == lastChar + 1 || currentChar == lastChar - 1) {
-                return true; // 連続する文字が見つかった
-            }
-            lastChar = currentChar;
-        }
-        return false; // 連続する文字が見つからなかった
-    }
-
-    private void summonArmorStand(Player player, String text) {
-        String processedText = text.substring(1).replace("、", "");
-
-        Location location = player.getLocation().add(0, 0.1, 0); // プレイヤーの頭上
-        ArmorStand armorStand = location.getWorld().spawn(location, ArmorStand.class);
-
-        armorStand.setVisible(false); // 防具立てを見えなくする
-        armorStand.setGravity(false); // 重力の影響を受けないようにする
-        armorStand.setCustomName(processedText); // 処理された名前を設定
-        armorStand.setCustomNameVisible(true); // 名前を表示
-
-        new BukkitRunnable() {
-            int ticks = 0;
-
-            @Override
-            public void run() {
-                if (ticks > 60) { // 3秒後（60ティック）
-                    armorStand.remove(); // 防具立てを消去
-                    this.cancel();
-                    return;
-                }
-
-                // 防具立ての位置を徐々に上昇させる
-                armorStand.teleport(armorStand.getLocation().add(0, 0.05, 0)); // 少しずつ上に移動
-                ticks++;
-            }
-        }.runTaskTimer(this, 0L, 1L); // ティックごとにタスクを実行
-    }
 
     private void equipBoneHelmet(Player player) {
         PlayerInventory inventory = player.getInventory();
@@ -486,64 +535,6 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }
     }
 
-    private void warpPlayer(Player player, int power) {
-        Location location = player.getLocation();
-        Vector direction = location.getDirection().setY(0).normalize(); // Y軸成分を0にして平面上での方向を取得
-        Location forwardLocation = location.clone().add(direction.multiply(2)); // 2マス前の位置
-
-        // 正面にブロックがない場合にワープ
-        if (forwardLocation.getBlock().getType() == Material.AIR) {
-            player.teleport(forwardLocation);
-
-            // 威力に応じて四方に動く
-            switch (power) {
-                case 1: // 北
-                    player.teleport(player.getLocation().add(0, 0, -1));
-                    break;
-                case 2: // 東
-                    player.teleport(player.getLocation().add(1, 0, 0));
-                    break;
-                case 3: // 南
-                    player.teleport(player.getLocation().add(0, 0, 1));
-                    break;
-                default: // 西
-                    player.teleport(player.getLocation().add(-1, 0, 0));
-                    break;
-            }
-        }
-    }
-
-    private void summonEnderCrystal(Player player) {
-        if (playerCrystals.containsKey(player.getUniqueId())) {
-            player.sendMessage("すでにエンドクリスタルを持っています。");
-            return;
-        }
-
-        Location spawnLocation = player.getLocation().add(0, 1, 0);
-        EnderCrystal crystal = player.getWorld().spawn(spawnLocation, EnderCrystal.class);
-        playerCrystals.put(player.getUniqueId(), crystal);
-    }
-
-    private void createExplosionAtSight(Player player, int time, int coalTime) {
-        Location eyeLocation = player.getEyeLocation();
-        Vector direction = eyeLocation.getDirection();
-        Location targetLocation = eyeLocation.add(direction.multiply(5)); // 視点から一定距離の位置
-
-        new BukkitRunnable() {
-            int count = 0;
-
-            @Override
-            public void run() {
-                if (count >= time / 20) { // 5秒 x 12 = 60秒
-                    this.cancel();
-                    return;
-                }
-
-                player.getWorld().createExplosion(targetLocation, coalTime); // 爆発を発生させる
-                count++;
-            }
-        }.runTaskTimer(this, 0L, 100L); // 100ティック（5秒）ごとに実行
-    }
 
     private void summonEnderDragon(Player player, int time) {
         Location spawnLocation = player.getLocation().add(player.getLocation().getDirection().multiply(10));
@@ -588,11 +579,6 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }.runTaskTimer(this, 0L, 20L); // 1秒ごとに実行
     }
 
-    private void executeMagicActions(Player player, int lengthOfWord3, int lengthOfWord4, int lengthOfWord5) {
-        onPotionGive(player, PotionEffectType.SLOW, lengthOfWord4, lengthOfWord3);
-        playMagicSound(player, lengthOfWord5);
-        deleteParticle(player, random.nextInt(2));
-    }
 
     private void castRainSpell(Player player) {
         World world = player.getWorld();
@@ -640,14 +626,6 @@ public final class MagicStone extends JavaPlugin implements Listener {
         player.setFireTicks(duration);
     }
 
-    private boolean hasConsecutiveCharacters(String word) {
-        for (int i = 0; i < word.length() - 1; i++) {
-            if (word.charAt(i) == word.charAt(i + 1)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     private void summonZombies(Player player, int radius, int numberOfZombies) {
         if (player.getWorld().getEnvironment() != World.Environment.THE_END) {
@@ -717,23 +695,9 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }
     }
 
-    private void spawnTNT(Player player, int lengthOfWord3, int lengthOfWord4) {
-        if (player.getWorld().getEnvironment() != World.Environment.THE_END) {
-            player.sendMessage("エンドにいないと使えません。");
-            return;
-        }
-        Location location = player.getLocation();
-        Random random = new Random();
 
-        for (int i = 0; i < lengthOfWord3; i++) {
-            Location tntLocation = location.clone().add(random.nextInt(41) - 20, random.nextInt(2), random.nextInt(41) - 20);
-            TNTPrimed tnt = location.getWorld().spawn(tntLocation, TNTPrimed.class);
-            tnt.setFuseTicks(lengthOfWord4 / 20 + 10); // TNTの導火線を設定（オプション）
-        }
-    }
-
-    private void spawnHomingArrow(Player player, int lengthOfWord3, int lengthOfWord4) {
-        for (int i = 0; i < lengthOfWord3; i++) {
+    private void spawnHomingArrow(Player player, int extractedPower, int extractedRange) {
+        for (int i = 0; i < extractedPower; i++) {
             getServer().getScheduler().runTaskLater(this, () -> {
                 Arrow arrow = player.launchProjectile(Arrow.class);
                 arrow.setVelocity(player.getLocation().getDirection().multiply(2.0)); // 速度の設定
@@ -771,54 +735,11 @@ public final class MagicStone extends JavaPlugin implements Listener {
                         }
                     }
                 }, 0L, 1L); // 0L: 遅延なし, 1L: 1ティックごとに更新
-            }, lengthOfWord4 / 20L * i); // i秒後に矢を発射
+            }, extractedRange / 20L * i); // i秒後に矢を発射
         }
 
     }
 
-    private void spawnHomingTNT(Player player, int numberOfTNT, int fuseTicks) {
-        if (player.getWorld().getEnvironment() != World.Environment.THE_END) {
-            player.sendMessage("エンドにいないと使えません。");
-            return;
-        }
-        for (int i = 0; i < numberOfTNT; i++) {
-            getServer().getScheduler().runTaskLater(this, () -> {
-                Location launchLocation = player.getLocation().add(player.getLocation().getDirection().multiply(2));
-                TNTPrimed tnt = player.getWorld().spawn(launchLocation, TNTPrimed.class);
-                tnt.setFuseTicks(fuseTicks);
-                tnt.setVelocity(player.getLocation().getDirection().multiply(2.0)); // 速度の設定
-
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        if (!tnt.isValid()) {
-                            this.cancel();
-                            return;
-                        }
-
-                        // 最も近いエンティティを探す（他のプレイヤーを除外）
-                        LivingEntity target = null;
-                        double closestDistance = Double.MAX_VALUE;
-                        for (Entity entity : tnt.getNearbyEntities(10, 10, 10)) {
-                            if (entity instanceof LivingEntity && !(entity instanceof Player) && !(entity instanceof ArmorStand)) {
-                                double distance = entity.getLocation().distanceSquared(tnt.getLocation());
-                                if (distance < closestDistance) {
-                                    closestDistance = distance;
-                                    target = (LivingEntity) entity;
-                                }
-                            }
-                        }
-
-                        // ターゲットに向けてTNTを誘導
-                        if (target != null) {
-                            Vector direction = target.getLocation().add(0, 1, 0).subtract(tnt.getLocation()).toVector().normalize();
-                            tnt.setVelocity(direction.multiply(1.5)); // 速度の更新
-                        }
-                    }
-                }.runTaskTimer(this, 0L, 1L);
-            }, fuseTicks / 20L * i); // i秒後にTNTを発射
-        }
-    }
 
     private void castIceMagic(Player player, int time, int damage) {
         new BukkitRunnable() {
@@ -898,11 +819,11 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }.runTaskTimer(this, 0L, 20L); // 1秒ごとに実行
     }
 
-    private void onBeamSpawn(Player player, int lengthOfWord3, int lengthOfWord4) {
+    private void onBeamSpawn(Player player, int extractedPower, int extractedRange) {
         new BukkitRunnable() {
             Location loc = player.getEyeLocation();
             Vector direction = loc.getDirection().normalize().multiply(2); // ビームの方向と速度
-            int range = lengthOfWord4 / 20; // ビームの射程
+            int range = extractedRange / 20; // ビームの射程
 
             @Override
             public void run() {
@@ -913,7 +834,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     // 当たり判定
                     for (Entity entity : loc.getWorld().getNearbyEntities(loc, 2, 2, 2)) {
                         if (entity instanceof LivingEntity && entity != player) {
-                            ((LivingEntity) entity).damage(lengthOfWord3 - 6);
+                            ((LivingEntity) entity).damage(extractedPower - 6);
                             this.cancel();
                             return;
                         }
@@ -965,19 +886,6 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }
     }
 
-    private void deleteParticle(Player player, int count) {
-        switch (count) {
-            case 0:
-                player.getWorld().spawnParticle(Particle.SMOKE_NORMAL, player.getLocation(), 30, 0.5, 0.5, 0.5, 0.1);
-                break;
-            case 1:
-                player.getWorld().spawnParticle(Particle.EXPLOSION_LARGE, player.getLocation(), 10, 1.0, 1.0, 1.0, 0.1);
-                break;
-            default:
-                player.getWorld().spawnParticle(Particle.CLOUD, player.getLocation(), 20, 0.5, 0.5, 0.5, 0.1);
-                break;
-        }
-    }
 
     private void onPointView(Player player, PotionEffectType effect, int timer, int level) {
         LivingEntity target = getTargetEntity(player);

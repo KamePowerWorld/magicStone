@@ -27,11 +27,12 @@ public class aiReturn {
     // 外部クラスのフィールド
     public static String result = "";
 
-    public static String ai(String gamePlayer) {
-        String apiKey = key.api;
+    public static String ai(String gamePlayer,Player player) {
+        String apiKey = MagicStone.getInstance().getConfig().getString("openaiKey");
         OpenAiService service = new OpenAiService(apiKey);
         List<ChatMessage> messages = new ArrayList<>();
-        ChatMessage userMessage = new ChatMessage(ChatMessageRole.USER.value(), "次の文章の、採点を行って具体的な魔法のステータスを決めてください。"+gamePlayer+"対象を、自分or敵or範囲の中から1つ。魔法の種類を、攻撃、バフ、、回復、その他、の中から1つ。文章に応じて威力、効果範囲、すべての数値を1~50の中で決める。返答メッセージに余分なものはつけず、決めたものだけ書き出してください。");
+        ChatMessage userMessage = new ChatMessage(ChatMessageRole.USER.value(),
+                "次の文章の、採点を行って具体的な魔法のステータスを決めてください。"+gamePlayer+"対象を、自分or敵or範囲の中から1つ。魔法の種類を、攻撃、バフ、、回復、例外、の中から1つ。文章に応じて威力、効果範囲、すべての数値を1~50の中で決める。返答メッセージに余分なものはつけず、決めたものだけ書き出してください。JSON形式で、「{\"対象\":～,\"魔法の種類\":～,\"威力\":～,\"効果範囲\":～}」また、意味のわからないものは、意味不明と返してください。");
         messages.add(userMessage);
         ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest
                 .builder()
@@ -66,7 +67,11 @@ public class aiReturn {
 
             @Override
             public void onComplete() {
+                MagicStone plugin = MagicStone.getInstance();
                 result = sb.toString();
+                System.out.println("完了");
+                System.out.println(result);
+                plugin.giveAiMessage(player,gamePlayer,result);
 
             }
         });
