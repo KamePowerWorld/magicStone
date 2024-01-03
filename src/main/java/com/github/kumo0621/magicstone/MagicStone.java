@@ -68,9 +68,14 @@ public final class MagicStone extends JavaPlugin implements Listener {
     public void onPlayerChat2(PlayerChatEvent event) {
         Player player = event.getPlayer();
         String message = event.getMessage();
-        if (message.startsWith("@")) {
-            aiReturn.ai(message, player);
 
+        if (message.startsWith("@")) {
+            int currentExp = player.getLevel();
+            // 必要な経験値が足りているかチェック
+            if (currentExp >= 30) {
+                aiReturn.ai(message, player);
+                player.setLevel(currentExp - 30);
+            }
         }
     }
 
