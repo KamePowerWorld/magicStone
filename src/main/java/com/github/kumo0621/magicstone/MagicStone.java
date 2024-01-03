@@ -6,8 +6,10 @@ import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerPickupItemEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -41,6 +43,37 @@ public final class MagicStone extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
         saveDefaultConfig();
         instance = this;
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                for (Player player : Bukkit.getServer().getOnlinePlayers()) {
+                    ItemStack[] items = player.getInventory().getContents();
+                    int carrotStickCount = 0;
+
+                    // ニンジン付き棒の総数を数える
+                    for (ItemStack item : items) {
+                        if (item != null && item.getType() == Material.CARROT_ON_A_STICK) {
+                            carrotStickCount += item.getAmount();
+
+                        }
+                    }
+
+                    // 4つ以上あれば、3つになるまで削除
+                    for (int i = 0; carrotStickCount > 3 && i < items.length; i++) {
+                        ItemStack item = items[i];
+                        if (item != null && item.getType() == Material.CARROT_ON_A_STICK) {
+                            int removeAmount = Math.min(item.getAmount(), carrotStickCount - 3);
+                            item.setAmount(item.getAmount() - removeAmount);
+                            carrotStickCount -= removeAmount;
+                            if (item.getAmount() <= 0) {
+                                player.getInventory().clear(i);
+                                player.sendMessage("持てる魔法は3つまでです。");
+                            }
+                        }
+                    }
+                }
+            }
+        }.runTaskTimer(this, 0L, 600L); // 30秒ごとに実行 (20L = 1秒)
     }
 
     public static MagicStone getInstance() {
