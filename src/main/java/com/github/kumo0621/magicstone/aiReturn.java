@@ -32,7 +32,7 @@ public class aiReturn {
         OpenAiService service = new OpenAiService(apiKey);
         List<ChatMessage> messages = new ArrayList<>();
         ChatMessage userMessage = new ChatMessage(ChatMessageRole.USER.value(),
-                "次の文章の、採点を行って具体的な魔法のステータスを決めてください。"+gamePlayer+"対象を、自分or敵or範囲の中から1つ。魔法の種類を、攻撃、バフ、、回復、例外、の中から1つ。文章に応じて威力、効果範囲、すべての数値を1~50の中で決める。返答メッセージに余分なものはつけず、決めたものだけ書き出してください。JSON形式で、「{\"対象\":～,\"魔法の種類\":～,\"威力\":～,\"効果範囲\":～}」また、意味のわからないものは、意味不明と返してください。");
+                "次の文章の、採点を行って具体的な魔法のステータスを決めてください。"+gamePlayer+"対象を、自分、単体攻撃、範囲攻撃、の中から1つ文章に応じて絶対決めてください。魔法の種類を、攻撃、バフ、、回復、お遊び、の中から1つ文章に応じて威力、効果時間、すべての数値を1~50の中で決める。指定された値以外絶対に返さないでください。返答メッセージに余分なものはつけず、決めたものだけ書き出してください。JSON形式で、「{\"対象\":～,\"魔法の種類\":～,\"威力\":～,\"効果時間\":～}」また、意味のわからないものは、意味不明と返してください。また、指定のなかった値に関しては一律30の値を入れてください。");
         messages.add(userMessage);
         ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest
                 .builder()

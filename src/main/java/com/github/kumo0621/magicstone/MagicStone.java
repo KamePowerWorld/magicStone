@@ -108,6 +108,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
             if (currentExp >= 30) {
                 aiReturn.ai(message, player);
                 player.setLevel(currentExp - 30);
+            }else {
+                player.sendMessage("魔法を生成するのは30Lv必要です。");
             }
         }
     }
@@ -127,7 +129,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             String target = aiData.get("対象").getAsString();    // 対象
             String magicType = aiData.get("魔法の種類").getAsString();  // 魔法の種類
             int power = aiData.get("威力").getAsInt();  // 威力
-            int range = aiData.get("効果範囲").getAsInt();    // 効果範囲
+            int range = aiData.get("効果時間").getAsInt();    // 効果範囲
             int effectType = random.nextInt(20);
             int magicNumber = random.nextInt(9);
 
@@ -182,9 +184,9 @@ public final class MagicStone extends JavaPlugin implements Listener {
         // アイテムメタデータを取得して編集
         ItemMeta meta = carrotStick.getItemMeta();
         if (meta != null) {
-
+            int cost = power * range / 40 + effectType;
             // 名前を設定（カラーコードで装飾可能）
-            meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', message));
+            meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', message +" 必要経験値 "+ cost));
             setItemData(meta, message, target, magicNumber, magicType, power, range, effectType);
             // アイテムスタックにメタデータを設定
             carrotStick.setItemMeta(meta);
@@ -319,7 +321,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                         }
                     }
                 }
-                case "敵" -> {
+                case "単体攻撃" -> {
                     switch (magicData.getMagicType()) {
                         case "攻撃" -> {
                             switch (magicData.getMagicNumber()) {
@@ -425,7 +427,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                         }
                     }
                 }
-                case "範囲" -> {
+                case "範囲攻撃" -> {
                     switch (magicData.getMagicType()) {
                         case "攻撃" -> {
                             switch (magicData.getMagicNumber()) {
