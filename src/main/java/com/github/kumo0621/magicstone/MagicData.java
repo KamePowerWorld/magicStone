@@ -6,9 +6,11 @@ public class MagicData {
     private int power;
     private int range;
     private int effect;
-    private String message;
 
-    public MagicData(int magicNumber, String magicType, String target, int power, int range, int effect, String message) {
+    private String message;
+    private String properties;
+
+    public MagicData(int magicNumber, String magicType, String target, int power, int range, int effect, String message,String properties) {
         this.magicNumber = magicNumber;
         this.magicType = magicType;
         this.target = target;
@@ -16,6 +18,8 @@ public class MagicData {
         this.range = range;
         this.effect = effect;
         this.message = message;
+        this.properties = properties;
+
     }
 
     // ゲッターメソッド
@@ -46,4 +50,6 @@ public class MagicData {
     public String getMessage() {
         return message;
     }
+
+    public String getProperties(){return properties;}
 }
