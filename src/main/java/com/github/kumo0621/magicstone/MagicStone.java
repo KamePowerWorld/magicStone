@@ -37,6 +37,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
     private static MagicStone instance;
     Random random = new Random();
     private Map<UUID, EnderCrystal> playerCrystals = new HashMap<>();
+    private final HashMap<UUID, Long> cooldowns = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -117,10 +118,10 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
         }
         if (aiData != null) {
-           // String target = aiData.get("対象").getAsString();    // 対象
+            // String target = aiData.get("対象").getAsString();    // 対象
             String magicType = aiData.get("魔法名").getAsString();  // 魔法の種類
             int power = aiData.get("威力").getAsInt();  // 威力
-            int range = aiData.get("効果時間").getAsInt()*20;    // 効果範囲
+            int range = aiData.get("効果時間").getAsInt() * 20;    // 効果範囲
             int effectType = random.nextInt(20);
             int magicNumber = random.nextInt(3);
             String properties = aiData.get("種類").getAsString();
@@ -175,7 +176,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
         // アイテムメタデータを取得して編集
         ItemMeta meta = carrotStick.getItemMeta();
         if (meta != null) {
-            int cost = power * range /60/15;
+            int cost = power * range / 60 / 15;
             // 名前を設定（カラーコードで装飾可能）
             meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', magicType + " 必要経験値 " + cost));
             setItemData(meta, message, magicNumber, magicType, power, range, effectType, properties);
@@ -189,27 +190,34 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
-        // プレイヤーが持っているアイテムを取得
-        ItemStack item = event.getItem();
         Player player = event.getPlayer();
+        ItemStack item = event.getItem();
+
         // アイテムがニンジン付き棒であるかチェック
         if (item != null && item.getType() == Material.CARROT_ON_A_STICK) {
-            // アイテムメタデータを取得
-            ItemMeta meta = item.getItemMeta();
-            if (meta != null) {
-                MagicData magicData = getItemData(meta);
+            UUID playerId = player.getUniqueId();
+            long currentTime = System.currentTimeMillis();
+
+            // プレイヤーのクールダウンをチェック
+            if (cooldowns.containsKey(playerId) && (currentTime - cooldowns.get(playerId) < 10000)) {
+                player.sendMessage("10秒に一回しか魔法は使えません。");
+                event.setCancelled(true);
+            } else {
+                // アイテムメタデータを取得し処理を行う
+                MagicData magicData = getItemData(item.getItemMeta());
                 if (magicData != null) {
                     Magic(player, magicData);
-
                 }
 
+                // クールダウンを更新
+                cooldowns.put(playerId, currentTime);
             }
         }
     }
 
 
     public void Magic(Player player, MagicData magicData) {
-        int cost = magicData.getPower() * magicData.getRange() /60/15;
+        int cost = magicData.getPower() * magicData.getRange() / 60 / 15;
         int currentExp = player.getLevel();
         // 必要な経験値が足りているかチェック
         if (currentExp >= cost) {
@@ -365,7 +373,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     particle(player, magicData.getMagicNumber());
                 }
                 case "雷" -> {
-                    castLightningSpell(player, magicData.getRange()/2, magicData.getPower());
+                    castLightningSpell(player, magicData.getRange() / 2, magicData.getPower());
                     playMagicSound(player, magicData.getEffect());
                     particle(player, magicData.getMagicNumber());
                 }
@@ -379,7 +387,11 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     playMagicSound(player, magicData.getEffect());
                     particle(player, magicData.getMagicNumber());
                 }
-
+                case "元カノ砲" -> {
+                    createMagicEffect(player);
+                    playMagicSound(player, magicData.getEffect());
+                    particle(player, magicData.getMagicNumber());
+                }
 
                 case "お花" -> {
                     castFlowerSpell(player, magicData.getPower(), magicData.getRange());
@@ -391,6 +403,22 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     playMagicSound(player, magicData.getEffect());
                     particle(player, magicData.getMagicNumber());
                 }
+                case "魚"->{
+                    summonMagicFish(player,magicData.getPower(), magicData.getRange());
+                    playMagicSound(player, magicData.getEffect());
+                    particle(player, magicData.getMagicNumber());
+                }
+                case "剣"->{
+                    launchSwordFromPlayer(player,magicData.getPower(), magicData.getRange());
+                    playMagicSound(player, magicData.getEffect());
+                    particle(player, magicData.getMagicNumber());
+                }
+                case "全方位剣"->{
+                    launchSwordsInAllDirections(player,magicData.getPower(), magicData.getRange());
+                    playMagicSound(player, magicData.getEffect());
+                    particle(player, magicData.getMagicNumber());
+                }
+
                 default -> {
                     onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
                     playMagicSound(player, magicData.getEffect());
@@ -400,12 +428,11 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
             double result = currentExp - cost;
             player.setLevel((int) result);
-        }else {
+        } else {
             player.sendMessage("経験値が足りない。");
         }
 
     }
-
 
 
     private static final Sound[] magicSounds = {
@@ -430,8 +457,173 @@ public final class MagicStone extends JavaPlugin implements Listener {
             Sound.ENTITY_BLAZE_SHOOT,               // 19
             Sound.ENTITY_ENDER_EYE_LAUNCH           // 20
     };
+    public void launchFireParticles(Player player,int power , int range) {
+        Location playerLocation = player.getLocation();
+        Vector[] directions = {
+                new Vector(1, 0, 0),   // 東
+                new Vector(1, 0, 1),   // 南東
+                new Vector(0, 0, 1),   // 南
+                new Vector(-1, 0, 1),  // 南西
+                new Vector(-1, 0, 0),  // 西
+                new Vector(-1, 0, -1), // 北西
+                new Vector(0, 0, -1),  // 北
+                new Vector(1, 0, -1)   // 北東
+        };
 
+        for (Vector direction : directions) {
+            new BukkitRunnable() {
+                Location currentLocation = playerLocation.clone();
+                int ticks = 0; // 経過したティック数
 
+                public void run() {
+                    if (ticks > range) { // 30秒 (20ティック/秒 * 30秒)
+                        this.cancel();
+                        return;
+                    }
+
+                    currentLocation.add(direction.multiply(0.3));
+                    player.getWorld().spawnParticle(Particle.FLAME, currentLocation, 0, 0, 0, 0, 0.01);
+
+                    // 近くのプレイヤーに火傷の効果を与える
+                    currentLocation.getWorld().getNearbyEntities(currentLocation, 0.5, 0.5, 0.5).forEach(entity -> {
+                        if (entity instanceof Player && entity != player) {
+                            entity.setFireTicks(power*20); // 5秒間燃える
+                        }
+                    });
+
+                    ticks++;
+                }
+            }.runTaskTimer(this, 0L, 1L); // 1ティックごとに実行
+        }
+    }
+    public void launchSwordsInAllDirections(Player player,int power , int range) {
+        Location playerLocation = player.getLocation();
+        Vector[] directions = {
+                new Vector(1, 0, 0),   // 東
+                new Vector(1, 0, 1),   // 南東
+                new Vector(0, 0, 1),   // 南
+                new Vector(-1, 0, 1),  // 南西
+                new Vector(-1, 0, 0),  // 西
+                new Vector(-1, 0, -1), // 北西
+                new Vector(0, 0, -1),  // 北
+                new Vector(1, 0, -1)   // 北東
+        };
+
+        for (Vector direction : directions) {
+            ArmorStand swordStand = (ArmorStand) playerLocation.getWorld().spawnEntity(playerLocation, EntityType.ARMOR_STAND);
+            swordStand.setVisible(false);
+            swordStand.setGravity(false);
+            swordStand.setInvulnerable(true);
+            swordStand.setHelmet(new ItemStack(Material.STONE_SWORD)); // 石の剣を装備
+
+            new BukkitRunnable() {
+                public void run() {
+                    swordStand.teleport(swordStand.getLocation().add(direction.multiply(0.3)));
+
+                    // 近くのエンティティにダメージを適用
+                    swordStand.getLocation().getNearbyEntities(1, 1, 1).forEach(entity -> {
+                        if (entity instanceof Player && entity != player) {
+                            ((Player) entity).damage((double) power /2); // ダメージ量
+                        }
+                    });
+
+                    // 一定距離を超えたら消滅
+                    if (swordStand.getLocation().distance(playerLocation) > (double) range /20) {
+                        swordStand.remove();
+                        this.cancel();
+                    }
+                }
+            }.runTaskTimer(this, 0L, 1L); // 1ティックごとに実行
+        }
+    }
+    public void launchSwordFromPlayer(Player player, int Power , int range) {
+        Location startLocation = player.getLocation();
+        ArmorStand swordStand = (ArmorStand) startLocation.getWorld().spawnEntity(startLocation, EntityType.ARMOR_STAND);
+        swordStand.setVisible(false);
+        swordStand.setGravity(false);
+        swordStand.setInvulnerable(true);
+        swordStand.setHelmet(new ItemStack(Material.STONE_SWORD)); // 石の剣を装備
+
+        Vector direction = player.getLocation().getDirection().multiply(0.3); // プレイヤーの向いている方向に速度を設定
+
+        new BukkitRunnable() {
+            public void run() {
+                swordStand.teleport(swordStand.getLocation().add(direction));
+
+                // 近くのプレイヤーにダメージを適用
+                swordStand.getLocation().getNearbyEntities(1, 1, 1).forEach(entity -> {
+                    if (entity instanceof Player && entity != player) {
+                        ((Player) entity).damage((double) Power /2); // ダメージ量
+                    }
+                });
+
+                // 一定距離を超えたら消滅
+                if (swordStand.getLocation().distance(startLocation) > (double) range /20) {
+                    swordStand.remove();
+                    this.cancel();
+                }
+            }
+        }.runTaskTimer(this, 0L, 1L); // 1ティックごとに実行
+    }
+    public void summonMagicFish(Player player , int Power , int range) {
+        Location playerLocation = player.getLocation();
+        Random random = new Random();
+
+        // プレイヤーの周囲にランダムな位置を生成
+        Location fishLocation = playerLocation.clone().add((random.nextDouble() * 10) - 5, (random.nextDouble() * 5), (random.nextDouble() * 10) - 5);
+
+        // 魚をスポーンさせる
+        Item fish = fishLocation.getWorld().dropItem(fishLocation, new ItemStack(Material.COD));
+        fish.setVelocity(new Vector(0, 0.5, 0)); // 魚に少しの上向きの速度を与える
+
+        // パーティクルを表示
+        fishLocation.getWorld().spawnParticle(Particle.WATER_SPLASH, fishLocation, 30, 0.5, 0.5, 0.5, 0.1);
+
+        // 近くのプレイヤーにウィザー効果を適用
+        new BukkitRunnable() {
+            public void run() {
+                fishLocation.getWorld().getNearbyEntities(fishLocation, 5, 5, 5).forEach(entity -> {
+                    if (entity instanceof Player && entity != player) {
+                        ((Player) entity).addPotionEffect(new PotionEffect(PotionEffectType.WITHER, range/2, Power/2)); // 10秒間のウィザー効果
+                    }
+                });
+
+                // 魚を消滅させる
+                fish.remove();
+            }
+        }.runTaskLater(this, 20 * 5); // 5秒後に実行
+    }
+    private void createMagicEffect(Player player) {
+        Location center = player.getLocation();
+        new BukkitRunnable() {
+            double radius = 0.0;
+            long endTime = System.currentTimeMillis() + 5000; // 5秒後に終了
+
+            public void run() {
+                if (System.currentTimeMillis() > endTime) {
+                    this.cancel(); // 5秒経過したら終了
+                }
+
+                for (int i = 0; i < 360; i += 10) { // 360度の円を形成
+                    double angle = Math.toRadians(i);
+                    double x = center.getX() + radius * Math.cos(angle);
+                    double z = center.getZ() + radius * Math.sin(angle);
+                    Location loc = new Location(center.getWorld(), x, center.getY(), z);
+
+                    center.getWorld().spawnParticle(Particle.HEART, loc, 1);
+
+                    // パーティクルの近くにいるエンティティにダメージを与える
+                    for (Entity entity : center.getWorld().getNearbyEntities(loc, 1, 1, 1)) {
+                        if (entity instanceof Player && !entity.equals(player)) {
+                            ((Player) entity).damage(1.0);
+                        }
+                    }
+                }
+
+                radius += 0.1; // 半径を広げる
+            }
+        }.runTaskTimer(this, 0L, 10L); // 2ティックごとに実行
+    }
     private void equipBoneHelmet(Player player) {
         PlayerInventory inventory = player.getInventory();
         ItemStack helmet = new ItemStack(Material.BONE);
@@ -565,7 +757,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 for (Entity entity : loc.getWorld().getNearbyEntities(loc, 1, 1, 1)) {
                     if (entity instanceof LivingEntity && entity != player) {
                         ((LivingEntity) entity).damage(attack); // 3ダメージ
-                        entity.setFireTicks(timer*20); // 3秒間炎上
+                        entity.setFireTicks(timer * 20); // 3秒間炎上
                     }
                 }
 
@@ -858,7 +1050,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
             @Override
             public void run() {
-                if (count >= attackCount/20) {
+                if (count >= attackCount / 20) {
                     this.cancel();
                     return;
                 }
