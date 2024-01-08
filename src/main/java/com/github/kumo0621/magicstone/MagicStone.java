@@ -95,12 +95,13 @@ public final class MagicStone extends JavaPlugin implements Listener {
         String message = event.getMessage();
 
         if (message.startsWith("@")) {
-            int currentExp = player.getLevel();
+            int currentExp = XpUtils.getPlayerExperience(player);
             // 必要な経験値が足りているかチェック
-            if (currentExp >= 30) {
+            int xpLv30 = XpUtils.levelToExp(30);
+            if (currentExp >= xpLv30) {
                 aiReturn.ai(message, player);
-                player.setLevel(currentExp - 30);
-            } else {
+                XpUtils.setPlayerExperience(player, currentExp - xpLv30);
+            }else {
                 player.sendMessage("魔法を生成するのは30Lv必要です。");
             }
         }
@@ -217,8 +218,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
 
     public void Magic(Player player, MagicData magicData) {
-        int cost = magicData.getPower() * magicData.getRange() / 60 / 15;
-        int currentExp = player.getLevel();
+        int cost = XpUtils.levelToExp(magicData.getPower() * magicData.getRange() /60/15);
+        int currentExp = XpUtils.getPlayerExperience(player);
         // 必要な経験値が足りているかチェック
         if (currentExp >= cost) {
             switch (magicData.getProperties()) {
@@ -426,9 +427,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
                 }
             }
-            double result = currentExp - cost;
-            player.setLevel((int) result);
-        } else {
+            XpUtils.setPlayerExperience(player, currentExp - cost);
+        }else {
             player.sendMessage("経験値が足りない。");
         }
 
@@ -931,10 +931,12 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     return;
                 }
 
+                int xpLv30 = XpUtils.levelToExp(30);
                 int expUsed = playerExpUsage.get(playerId) + 1;
-                if (expUsed <= 30) {
-                    if (player.getLevel() > 0) {
-                        player.setLevel(player.getLevel() - 1);
+                if (expUsed <= xpLv30) {
+                    int playerXp = XpUtils.getPlayerExperience(player);
+                    if (playerXp > 0) {
+                        XpUtils.setPlayerExperience(player, playerXp - XpUtils.levelToExp(1));
                         playerExpUsage.put(playerId, expUsed);
                         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0F, 0.5F);
                     } else {
