@@ -6,10 +6,8 @@ import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerChatEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerPickupItemEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -22,13 +20,10 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.bukkit.potion.PotionEffectType.*;
 
@@ -38,12 +33,17 @@ public final class MagicStone extends JavaPlugin implements Listener {
     Random random = new Random();
     private Map<UUID, EnderCrystal> playerCrystals = new HashMap<>();
     private final HashMap<UUID, Long> cooldowns = new HashMap<>();
+    private MagicAI aiReturn;
 
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
         saveDefaultConfig();
         instance = this;
+
+        // AIリクエスト用のインスタンスを生成
+        aiReturn = new MagicAI(getLogger(), getConfig().getString("openaiKey"));
+
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -99,7 +99,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
             // 必要な経験値が足りているかチェック
             int xpLv30 = XpUtils.levelToExp(30);
             if (currentExp >= xpLv30) {
-                aiReturn.ai(message, player);
+                // AIにリクエストを送信、結果を受け取りアイテムを付与
+                aiReturn.ai(message).thenAccept(status -> giveAiMessage(player, message, status));
                 XpUtils.setPlayerExperience(player, currentExp - xpLv30);
             }else {
                 player.sendMessage("魔法を生成するのは30Lv必要です。");
