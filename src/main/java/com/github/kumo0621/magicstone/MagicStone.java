@@ -104,9 +104,37 @@ public final class MagicStone extends JavaPlugin implements Listener {
             } else {
                 player.sendMessage("魔法を生成するのは30Lv必要です。");
             }
+            event.setCancelled(true);
         }
     }
+    private void summonArmorStand(Player player, String text) {
+        String processedText = text.substring(1).replace("、", "");
 
+        Location location = player.getLocation().add(0, 0.1, 0); // プレイヤーの頭上
+        ArmorStand armorStand = location.getWorld().spawn(location, ArmorStand.class);
+
+        armorStand.setVisible(false); // 防具立てを見えなくする
+        armorStand.setGravity(false); // 重力の影響を受けないようにする
+        armorStand.setCustomName(processedText); // 処理された名前を設定
+        armorStand.setCustomNameVisible(true); // 名前を表示
+
+        new BukkitRunnable() {
+            int ticks = 0;
+
+            @Override
+            public void run() {
+                if (ticks > 60) { // 3秒後（60ティック）
+                    armorStand.remove(); // 防具立てを消去
+                    this.cancel();
+                    return;
+                }
+
+                // 防具立ての位置を徐々に上昇させる
+                armorStand.teleport(armorStand.getLocation().add(0, 0.05, 0)); // 少しずつ上に移動
+                ticks++;
+            }
+        }.runTaskTimer(this, 0L, 1L); // ティックごとにタスクを実行
+    }
     public void giveAiMessage(Player player, String message, String status) {
         Random random = new Random();
         JsonObject aiData = null;
@@ -177,7 +205,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
         // アイテムメタデータを取得して編集
         ItemMeta meta = carrotStick.getItemMeta();
         if (meta != null) {
-            int cost = power * range / 60 / 15;
+            int cost = power * range / 60/7;
             // 名前を設定（カラーコードで装飾可能）
             meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', magicType + " 必要経験値 " + cost));
             setItemData(meta, message, magicNumber, magicType, power, range, effectType, properties);
@@ -208,6 +236,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 MagicData magicData = getItemData(item.getItemMeta());
                 if (magicData != null) {
                     Magic(player, magicData);
+
                 }
 
                 // クールダウンを更新
@@ -218,7 +247,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
 
     public void Magic(Player player, MagicData magicData) {
-        int cost = XpUtils.levelToExp(magicData.getPower() * magicData.getRange() / 60 / 15);
+        summonArmorStand(player,magicData.getMagicType());
+        int cost = XpUtils.levelToExp(magicData.getPower() * magicData.getRange() / 60/7);
         int currentExp = XpUtils.getPlayerExperience(player);
         // 必要な経験値が足りているかチェック
         if (currentExp >= cost) {
