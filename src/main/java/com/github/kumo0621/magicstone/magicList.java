@@ -5,6 +5,7 @@ import java.util.List;
 
 public class magicList {
     public static List<String> magicActions;
+
     public static void MagicHandler() {
         magicActions = new ArrayList<>();
 
@@ -60,5 +61,9 @@ public class magicList {
         magicActions.add("全員回復,");
         magicActions.add("全員速度上昇,");
         magicActions.add("全員浮遊,");
+        magicActions.add("連続爆発,");
+        magicActions.add("範囲ヒール,");
+        magicActions.add("範囲鈍足,");
+        magicActions.add("範囲継続攻撃,");
     }
 }

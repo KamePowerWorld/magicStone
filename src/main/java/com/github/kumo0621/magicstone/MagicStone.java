@@ -25,7 +25,9 @@ import org.bukkit.potion.PotionType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
 
 import java.util.*;
 
@@ -107,6 +109,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             event.setCancelled(true);
         }
     }
+
     private void summonArmorStand(Player player, String text) {
         String processedText = text.substring(1).replace("、", "");
 
@@ -135,6 +138,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
         }.runTaskTimer(this, 0L, 1L); // ティックごとにタスクを実行
     }
+
     public void giveAiMessage(Player player, String message, String status) {
         Random random = new Random();
         JsonObject aiData = null;
@@ -154,7 +158,11 @@ public final class MagicStone extends JavaPlugin implements Listener {
             int effectType = random.nextInt(20);
             int magicNumber = random.nextInt(3);
             String properties = aiData.get("種類").getAsString();
-            giveCustomCarrotStick(player, message, magicNumber, magicType, power, range, effectType, properties);
+            if ((power >= 1 && power < 51) && (range >= 20 && range < 1000)) {
+                giveCustomCarrotStick(player, message, magicNumber, magicType, power, range, effectType, properties);
+            } else {
+                player.sendMessage("無効な値が生成に使われました。");
+            }
         } else {
             player.sendMessage("無効なスペルです。");
 
@@ -205,7 +213,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
         // アイテムメタデータを取得して編集
         ItemMeta meta = carrotStick.getItemMeta();
         if (meta != null) {
-            int cost = power * range / 60/7;
+            int cost = power * range / 60 / 7 + 4;
             // 名前を設定（カラーコードで装飾可能）
             meta.setDisplayName(ChatColor.translateAlternateColorCodes('&', magicType + " 必要経験値 " + cost));
             setItemData(meta, message, magicNumber, magicType, power, range, effectType, properties);
@@ -247,8 +255,8 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
 
     public void Magic(Player player, MagicData magicData) {
-        summonArmorStand(player,magicData.getMagicType());
-        int cost = XpUtils.levelToExp(magicData.getPower() * magicData.getRange() / 60/7);
+        summonArmorStand(player, magicData.getMagicType());
+        int cost = XpUtils.levelToExp(magicData.getPower() * magicData.getRange() / 60 / 7 + 4);
         int currentExp = XpUtils.getPlayerExperience(player);
         // 必要な経験値が足りているかチェック
         if (currentExp >= cost) {
@@ -524,6 +532,27 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     playMagicSound(player, magicData.getEffect());
                     particle(player, magicData.getMagicNumber());
                 }
+                case "連続爆発" -> {
+                    summonExplodingDogs(player, this, random.nextInt(8));
+                    playMagicSound(player, magicData.getEffect());
+                    particle(player, magicData.getMagicNumber());
+                }
+                case "範囲ヒール" -> {
+                    areaCreateMagicEffect(player, HEAL, magicData.getRange(), magicData.getPower());
+                    playMagicSound(player, magicData.getEffect());
+                    particle(player, magicData.getMagicNumber());
+                }
+                case "範囲鈍足" -> {
+                    areaCreateMagicEffect(player, SLOW, magicData.getRange(), magicData.getPower());
+                    playMagicSound(player, magicData.getEffect());
+                    particle(player, magicData.getMagicNumber());
+                }
+                case "範囲継続攻撃" -> {
+                    areaCreateMagicEffect(player, WITHER, magicData.getRange(), magicData.getPower());
+                    playMagicSound(player, magicData.getEffect());
+                    particle(player, magicData.getMagicNumber());
+                }
+
 
                 default -> {
                     onPotionGive(player, SLOW, magicData.getRange(), magicData.getPower());
@@ -563,6 +592,104 @@ public final class MagicStone extends JavaPlugin implements Listener {
             Sound.ENTITY_ENDER_EYE_LAUNCH           // 20
     };
 
+
+    private void areaCreateMagicEffect(Player player, PotionEffectType effect, int timer, int level) {
+        final Location startLocation = player.getLocation(); // コマンド実行時のプレイヤーの位置を保存
+        new BukkitRunnable() {
+            double radius = 0.5; // 初期半径を0.5に設定
+            final double maxRadius = 5.0; // 最大半径を10マスに設定
+
+            public void run() {
+                if (radius > maxRadius) {
+                    this.cancel(); // 半径が10マスを超えたら終了
+                    return;
+                }
+
+                for (int i = 0; i < 360; i += 10) {
+                    double angle = Math.toRadians(i);
+                    double x = startLocation.getX() + radius * Math.cos(angle);
+                    double z = startLocation.getZ() + radius * Math.sin(angle);
+                    Location loc = new Location(startLocation.getWorld(), x, startLocation.getY() + 0.5, z);
+
+                    startLocation.getWorld().spawnParticle(particle2(level), loc, 1, 0, 0, 0, 0);
+                }
+
+                // 半径内のエンティティにポーション効果を付与する
+                for (Entity entity : startLocation.getWorld().getNearbyEntities(startLocation, radius, radius, radius)) {
+                    if (entity instanceof LivingEntity) {
+                        LivingEntity livingEntity = (LivingEntity) entity;
+                        livingEntity.addPotionEffect(new PotionEffect(effect, 60, level));
+                    }
+                }
+
+                radius += 0.5; // 半径を広げる
+            }
+        }.runTaskTimer(this, 0L, 10L); // 20ティック（約1秒）ごとに実行
+    }
+
+    private @NotNull Particle particle2(int level) {
+        switch (level) {
+            case 1 -> {
+                return Particle.END_ROD;
+            }
+            case 2, 3 -> {
+                return Particle.SPELL_WITCH;
+            }
+            case 4 -> {
+                return Particle.PORTAL;
+            }
+            case 5 -> {
+                return Particle.DRAGON_BREATH;
+            }
+            case 6 -> {
+                return Particle.TOTEM;
+            }
+            case 7 -> {
+                return Particle.SPELL;
+            }
+            case 8 -> {
+                return Particle.SPELL_INSTANT;
+            }
+            case 9, 10 -> {
+                return Particle.SPELL_MOB;
+            }
+            case 11 -> {
+                return Particle.CRIT_MAGIC;
+            }
+            case 12 -> {
+                return Particle.FIREWORKS_SPARK;
+            }
+            case 13 -> {
+                return Particle.NAUTILUS;
+            }
+            case 14 -> {
+                return Particle.SOUL;
+            }
+            case 15 -> {
+                return Particle.SOUL_FIRE_FLAME;
+            }
+            case 16 -> {
+                return Particle.WARPED_SPORE;
+            }
+            case 17 -> {
+                return Particle.VILLAGER_ANGRY;
+            }
+            case 18 -> {
+                return Particle.VILLAGER_HAPPY;
+            }
+            case 19 -> {
+                return Particle.DUST_COLOR_TRANSITION;
+            }
+            case 20 -> {
+                return Particle.REVERSE_PORTAL;
+            }
+            default -> {
+                return Particle.ENCHANTMENT_TABLE;
+            }
+        }
+    }
+
+
     public void allAreaEffect(Player player, PotionEffectType effect, int power, int range) {
         Location playerLocation = player.getLocation();
         int radius = 3; // 効果を適用する半径
@@ -576,6 +703,36 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 target.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, target.getLocation(), 30, 0.5, 0.5, 0.5, 0.1);
             }
         }
+    }
+
+    public void summonExplodingDogs(Player player, JavaPlugin plugin, int count) {
+        Location location = player.getLocation();
+        World world = player.getWorld();
+
+        // 30匹の犬を召喚し、それらを配列に格納する
+        Wolf[] dogs = new Wolf[30];
+        for (int i = 0; i < count; i++) {
+            dogs[i] = world.spawn(location, Wolf.class);
+            dogs[i].setOwner(player);
+            world.spawnParticle(Particle.HEART, location, 10);  // パーティクル効果
+        }
+
+        new BukkitRunnable() {
+            int count = 0;
+
+            public void run() {
+                if (count < dogs.length) {
+                    Wolf dog = dogs[new Random().nextInt(dogs.length)];
+                    if (dog != null && !dog.isDead()) {
+                        world.createExplosion(dog.getLocation(), 4F); // 爆発エフェクトとダメージ
+                        dog.remove(); // 犬を削除
+                    }
+                    count++;
+                } else {
+                    this.cancel(); // すべての犬が処理されたらタイマーを停止
+                }
+            }
+        }.runTaskTimer(plugin, 600L, 20L); // 30秒後に開始し、1秒ごとに繰り返す
     }
 
     public void launchExplosionEffect(Player player, int power, int range) {
@@ -598,7 +755,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 // 爆発エフェクトがモンスターに当たった場合にダメージを与える
                 for (Entity entity : currentLocation.getWorld().getNearbyEntities(currentLocation, 0.5, 0.5, 0.5)) {
                     if (entity instanceof Monster) {
-                        ((Monster) entity).damage((double) power / 2); // ダメージ量
+                        ((Monster) entity).damage((double) power); // ダメージ量
                     }
                 }
 
@@ -686,6 +843,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
 
             new BukkitRunnable() {
                 int steps = 0;
+
                 public void run() {
                     if (steps >= range) {
                         swordStand.remove();
@@ -700,7 +858,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     // 近くのエンティティにダメージを適用
                     currentLocation.getNearbyEntities(1, 1, 1).forEach(entity -> {
                         if (entity instanceof LivingEntity && entity != player) {
-                            ((LivingEntity) entity).damage((double) power / 2); // ダメージ量
+                            ((LivingEntity) entity).damage((double) power/2); // ダメージ量
                         }
                     });
 
@@ -727,7 +885,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 // 近くのすべてのエンティティにダメージを適用
                 swordStand.getLocation().getNearbyEntities(1, 1, 1).forEach(entity -> {
                     if (entity instanceof LivingEntity && entity != player) {
-                        ((LivingEntity) entity).damage((double) Power / 2); // ダメージ量
+                        ((LivingEntity) entity).damage((double) Power); // ダメージ量
                     }
                 });
 
@@ -1196,18 +1354,87 @@ public final class MagicStone extends JavaPlugin implements Listener {
         }.runTaskLater(this, 20L); // 1秒後に爆発
     }
 
-    private void particle(Player player, int count) {
-        switch (count) {
-            case 1:
-                player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation(), 30, 0.5, 0.5, 0.5, 0.1);
-                break;
-            case 2:
-                player.getWorld().spawnParticle(Particle.SPELL_WITCH, player.getLocation(), 30, 0.5, 0.5, 0.5, 0.1);
-                break;
-            default:
-                player.getWorld().spawnParticle(Particle.ENCHANTMENT_TABLE, player.getLocation(), 30, 0.5, 0.5, 0.5, 0.1);
-                break;
-        }
+    private @NotNull Particle particle(Player player, int count) {
+        Location loc = player.getLocation();
+
+        return switch (count) {
+            case 1 -> {
+                player.getWorld().spawnParticle(Particle.END_ROD, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.END_ROD;
+            }
+            case 2, 3 -> {
+                player.getWorld().spawnParticle(Particle.SPELL_WITCH, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.SPELL_WITCH;
+            }
+            case 4 -> {
+                player.getWorld().spawnParticle(Particle.PORTAL, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.PORTAL;
+            }
+            case 5 -> {
+                player.getWorld().spawnParticle(Particle.DRAGON_BREATH, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.DRAGON_BREATH;
+            }
+            case 6 -> {
+                player.getWorld().spawnParticle(Particle.TOTEM, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.TOTEM;
+            }
+            case 7 -> {
+                player.getWorld().spawnParticle(Particle.SPELL, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.SPELL;
+            }
+            case 8 -> {
+                player.getWorld().spawnParticle(Particle.SPELL_INSTANT, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.SPELL_INSTANT;
+            }
+            case 9, 10 -> {
+                player.getWorld().spawnParticle(Particle.SPELL_MOB, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.SPELL_MOB;
+            }
+            case 11 -> {
+                player.getWorld().spawnParticle(Particle.CRIT_MAGIC, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.CRIT_MAGIC;
+            }
+            case 12 -> {
+                player.getWorld().spawnParticle(Particle.FIREWORKS_SPARK, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.FIREWORKS_SPARK;
+            }
+            case 13 -> {
+                player.getWorld().spawnParticle(Particle.NAUTILUS, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.NAUTILUS;
+            }
+            case 14 -> {
+                player.getWorld().spawnParticle(Particle.SOUL, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.SOUL;
+            }
+            case 15 -> {
+                player.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.SOUL_FIRE_FLAME;
+            }
+            case 16 -> {
+                player.getWorld().spawnParticle(Particle.WARPED_SPORE, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.WARPED_SPORE;
+            }
+            case 17 -> {
+                player.getWorld().spawnParticle(Particle.VILLAGER_ANGRY, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.VILLAGER_ANGRY;
+            }
+            case 18 -> {
+                player.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.VILLAGER_HAPPY;
+            }
+            case 19 -> {
+                player.getWorld().spawnParticle(Particle.DUST_COLOR_TRANSITION, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.DUST_COLOR_TRANSITION;
+            }
+            case 20 -> {
+                player.getWorld().spawnParticle(Particle.REVERSE_PORTAL, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.REVERSE_PORTAL;
+            }
+            default -> {
+                player.getWorld().spawnParticle(Particle.ENCHANTMENT_TABLE, loc, 30, 0.5, 0.5, 0.5, 0.1);
+                yield Particle.ENCHANTMENT_TABLE;
+            }
+        };
     }
 
 
