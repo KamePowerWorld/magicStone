@@ -64,7 +64,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     // 4つ以上持っている場合、プレイヤーをkill
                     if (carrotStickCount > 5) {
                         player.setHealth(0);
-                        player.sendMessage("持てる魔法は3つまでです。3つ以下にシない限りkillされ続けます。");
+                        player.sendMessage("持てる魔法は5つまでです。3つ以下にシない限りkillされ続けます。");
                     }
                 }
             }
@@ -240,11 +240,24 @@ public final class MagicStone extends JavaPlugin implements Listener {
             UUID playerId = player.getUniqueId();
             long currentTime = System.currentTimeMillis();
             Team team = player.getScoreboard().getEntryTeam(player.getName());
-            if (team == null || !team.getName().equals("魔法使い")) {
+
+            if (team == null || !team.getName().equals("魔法使い") && !team.getName().equals("魔法研究員")) {
                 return;
             }
-            // プレイヤーのクールダウンをチェック
-            if (cooldowns.containsKey(playerId) && (currentTime - cooldowns.get(playerId) < 5000)) {
+            if (team == null || !team.getName().equals("魔法使い")) {
+                if (player.getWorld().getEnvironment() != World.Environment.THE_END) {
+                    if (cooldowns.containsKey(playerId) && (currentTime - cooldowns.get(playerId) < 5000)) {
+                        player.sendMessage("5秒に一回しか魔法は使えませんよ。");
+                        event.setCancelled(true);
+                    } else {
+                        MagicData magicData = getItemData(item.getItemMeta());
+                        if (magicData != null) {
+                            Magic(player, magicData);
+                        }
+                    }
+
+                }
+            } else if (cooldowns.containsKey(playerId) && (currentTime - cooldowns.get(playerId) < 5000)) {
                 player.sendMessage("5秒に一回しか魔法は使えません。");
                 event.setCancelled(true);
             } else {
@@ -252,13 +265,12 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 MagicData magicData = getItemData(item.getItemMeta());
                 if (magicData != null) {
                     Magic(player, magicData);
-
                 }
-
-                // クールダウンを更新
-                cooldowns.put(playerId, currentTime);
             }
+            // クールダウンを更新
+            cooldowns.put(playerId, currentTime);
         }
+
     }
 
 
@@ -866,7 +878,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     // 近くのエンティティにダメージを適用
                     currentLocation.getNearbyEntities(1, 1, 1).forEach(entity -> {
                         if (entity instanceof LivingEntity && entity != player) {
-                            ((LivingEntity) entity).damage((double) power/2); // ダメージ量
+                            ((LivingEntity) entity).damage((double) power / 2); // ダメージ量
                         }
                     });
 
