@@ -23,6 +23,7 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scoreboard.Team;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
@@ -61,7 +62,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     }
 
                     // 4つ以上持っている場合、プレイヤーをkill
-                    if (carrotStickCount > 3) {
+                    if (carrotStickCount > 5) {
                         player.setHealth(0);
                         player.sendMessage("持てる魔法は3つまでです。3つ以下にシない限りkillされ続けます。");
                     }
@@ -97,6 +98,10 @@ public final class MagicStone extends JavaPlugin implements Listener {
         String message = event.getMessage();
 
         if (message.startsWith("@")) {
+            Team team = player.getScoreboard().getEntryTeam(player.getName());
+            if (team == null || !team.getName().equals("魔法研究員")) {
+                return;
+            }
             int currentExp = XpUtils.getPlayerExperience(player);
             // 必要な経験値が足りているかチェック
             int xpLv30 = XpUtils.levelToExp(30);
@@ -234,10 +239,13 @@ public final class MagicStone extends JavaPlugin implements Listener {
         if (item != null && item.getType() == Material.CARROT_ON_A_STICK) {
             UUID playerId = player.getUniqueId();
             long currentTime = System.currentTimeMillis();
-
+            Team team = player.getScoreboard().getEntryTeam(player.getName());
+            if (team == null || !team.getName().equals("魔法使い")) {
+                return;
+            }
             // プレイヤーのクールダウンをチェック
-            if (cooldowns.containsKey(playerId) && (currentTime - cooldowns.get(playerId) < 10000)) {
-                player.sendMessage("10秒に一回しか魔法は使えません。");
+            if (cooldowns.containsKey(playerId) && (currentTime - cooldowns.get(playerId) < 5000)) {
+                player.sendMessage("5秒に一回しか魔法は使えません。");
                 event.setCancelled(true);
             } else {
                 // アイテムメタデータを取得し処理を行う
