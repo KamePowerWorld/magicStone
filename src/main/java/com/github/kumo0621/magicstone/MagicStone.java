@@ -64,7 +64,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     // 4つ以上持っている場合、プレイヤーをkill
                     if (carrotStickCount > 5) {
                         player.setHealth(0);
-                        player.sendMessage("持てる魔法は5つまでです。3つ以下にシない限りkillされ続けます。");
+                        player.sendMessage("持てる魔法は5つまでです。5つ以下にしない限りkillされ続けます。");
                     }
                 }
             }
@@ -104,7 +104,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
             int currentExp = XpUtils.getPlayerExperience(player);
             // 必要な経験値が足りているかチェック
-            int xpLv30 = XpUtils.levelToExp(30);
+            int xpLv30 = XpUtils.levelToExp(10);
             if (currentExp >= xpLv30) {
                 aiReturn.ai(message, player);
                 XpUtils.setPlayerExperience(player, currentExp - xpLv30);
@@ -116,14 +116,13 @@ public final class MagicStone extends JavaPlugin implements Listener {
     }
 
     private void summonArmorStand(Player player, String text) {
-        String processedText = text.substring(1).replace("、", "");
 
         Location location = player.getLocation().add(0, 0.1, 0); // プレイヤーの頭上
         ArmorStand armorStand = location.getWorld().spawn(location, ArmorStand.class);
 
         armorStand.setVisible(false); // 防具立てを見えなくする
         armorStand.setGravity(false); // 重力の影響を受けないようにする
-        armorStand.setCustomName(processedText); // 処理された名前を設定
+        armorStand.setCustomName(text); // 処理された名前を設定
         armorStand.setCustomNameVisible(true); // 名前を表示
 
         new BukkitRunnable() {
@@ -246,9 +245,10 @@ public final class MagicStone extends JavaPlugin implements Listener {
             }
             if (team == null || !team.getName().equals("魔法使い")) {
                 if (player.getWorld().getEnvironment() != World.Environment.THE_END) {
-                    if (cooldowns.containsKey(playerId) && (currentTime - cooldowns.get(playerId) < 5000)) {
-                        player.sendMessage("5秒に一回しか魔法は使えませんよ。");
+                    if (cooldowns.containsKey(playerId) && (currentTime - cooldowns.get(playerId) < 3000)) {
+                        player.sendMessage("3秒に一回しか魔法は使えませんよ。");
                         event.setCancelled(true);
+                        cooldowns.put(playerId, currentTime);
                     } else {
                         MagicData magicData = getItemData(item.getItemMeta());
                         if (magicData != null) {
@@ -257,20 +257,18 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     }
 
                 }
-            } else if (cooldowns.containsKey(playerId) && (currentTime - cooldowns.get(playerId) < 5000)) {
-                player.sendMessage("5秒に一回しか魔法は使えません。");
+            } else if (cooldowns.containsKey(playerId) && (currentTime - cooldowns.get(playerId) < 3000)) {
+                player.sendMessage("3秒に一回しか魔法は使えません。");
                 event.setCancelled(true);
             } else {
                 // アイテムメタデータを取得し処理を行う
                 MagicData magicData = getItemData(item.getItemMeta());
                 if (magicData != null) {
                     Magic(player, magicData);
+                    cooldowns.put(playerId, currentTime);
                 }
             }
-            // クールダウンを更新
-            cooldowns.put(playerId, currentTime);
         }
-
     }
 
 
@@ -293,7 +291,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     particle(player, magicData.getMagicNumber());
                 }
                 case "守護" -> {
-                    onPointView(player, PotionEffectType.DAMAGE_RESISTANCE, 2, 10); // 例: 耐性効果を適用
+                    onPointView(player, PotionEffectType.DAMAGE_RESISTANCE, 6, 10); // 例: 耐性効果を適用
                     playMagicSound(player, magicData.getEffect());
                     particle(player, magicData.getMagicNumber());
                 }
@@ -533,7 +531,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     particle(player, magicData.getMagicNumber());
                 }
                 case "全員守護" -> {
-                    allAreaEffect(player, DAMAGE_RESISTANCE, 400, 99);
+                    areaCreateMagicEffect(player, DAMAGE_RESISTANCE, 40, magicData.getPower());
                     playMagicSound(player, magicData.getEffect());
                     particle(player, magicData.getMagicNumber());
                 }
@@ -638,7 +636,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                 for (Entity entity : startLocation.getWorld().getNearbyEntities(startLocation, radius, radius, radius)) {
                     if (entity instanceof LivingEntity) {
                         LivingEntity livingEntity = (LivingEntity) entity;
-                        livingEntity.addPotionEffect(new PotionEffect(effect, 60, level));
+                        livingEntity.addPotionEffect(new PotionEffect(effect, timer, level));
                     }
                 }
 
@@ -717,7 +715,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
         for (Player target : player.getWorld().getPlayers()) {
             if (target.getLocation().distance(playerLocation) <= radius) {
                 // 味方プレイヤーに耐性効果を適用
-                target.addPotionEffect(new PotionEffect(effect, range, power / 20)); // 2秒間、レベル100
+                target.addPotionEffect(new PotionEffect(effect, power, range)); // 2秒間、レベル100
 
                 // パーティクルを表示
                 target.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, target.getLocation(), 30, 0.5, 0.5, 0.5, 0.1);
@@ -878,7 +876,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     // 近くのエンティティにダメージを適用
                     currentLocation.getNearbyEntities(1, 1, 1).forEach(entity -> {
                         if (entity instanceof LivingEntity && entity != player) {
-                            ((LivingEntity) entity).damage((double) power / 2); // ダメージ量
+                            ((LivingEntity) entity).damage((double) power); // ダメージ量
                         }
                     });
 
@@ -1011,7 +1009,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
         Arrow arrow = player.launchProjectile(Arrow.class);
         Vector direction = player.getLocation().getDirection();
         arrow.setVelocity(direction.multiply(time)); // 高速で発射
-        arrow.setDamage((double) time / 20 * 1.25); // 威力を設定
+        arrow.setDamage((double) time * 1.25); // 威力を設定
     }
 
     private void castRandomSplashSpell(Player player, int count, int time) {
@@ -1261,7 +1259,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     if (entity instanceof LivingEntity && entity != player) {
                         LivingEntity target = (LivingEntity) entity;
                         target.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, time, 100)); // 3秒間の移動速度低下
-                        target.damage((double) damage / 2); // 継続ダメージ
+                        target.damage((double) damage); // 継続ダメージ
                     }
                 }
 
@@ -1325,7 +1323,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
         new BukkitRunnable() {
             Location loc = player.getEyeLocation();
             Vector direction = loc.getDirection().normalize().multiply(2); // ビームの方向と速度
-            int range = extractedRange / 20; // ビームの射程
+            int range = extractedRange ; // ビームの射程
 
             @Override
             public void run() {
@@ -1336,7 +1334,7 @@ public final class MagicStone extends JavaPlugin implements Listener {
                     // 当たり判定
                     for (Entity entity : loc.getWorld().getNearbyEntities(loc, 2, 2, 2)) {
                         if (entity instanceof LivingEntity && entity != player) {
-                            ((LivingEntity) entity).damage(extractedPower - 6);
+                            ((LivingEntity) entity).damage(extractedPower);
                             this.cancel();
                             return;
                         }
